@@ -1,11 +1,11 @@
-# Default aish configuration
-# Copy to ~/.config/aish/config.toml and edit as needed.
+# Default shai configuration
+# Copy to ~/.config/shai/config.toml and edit as needed.
 
 [provider]
 # LLM provider: "openai" or "anthropic"
 name = "openai"
 
-# API key (or set AISH_API_KEY environment variable)
+# API key (or set SHAI_API_KEY environment variable)
 # api_key = "sk-..."
 
 # API base URL (defaults per provider; override for OpenAI-compatible servers)

@@ -1,4 +1,4 @@
-"""Context gathering and caching for aish.
+"""Context gathering and caching for shai.
 
 Gathers cwd, git status, environment info, and caches results to avoid
 redundant work across rapid-fire autocomplete requests.

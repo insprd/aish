@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from aish.config import AishConfig
-from aish.daemon import (
+from shai.config import AishConfig
+from shai.daemon import (
     AishDaemon,
     RateLimiter,
     SessionBuffer,

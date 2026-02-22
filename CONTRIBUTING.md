@@ -1,12 +1,12 @@
-# Contributing to aish
+# Contributing to shai
 
 Thanks for your interest in contributing! Here's how to get started.
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/insprd/aish.git
-cd aish
+git clone https://github.com/insprd/shai.git
+cd shai
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 ```
@@ -16,7 +16,7 @@ uv pip install -e ".[dev]"
 ```bash
 uv run python -m pytest          # Run tests
 uv run ruff check src/           # Lint
-uv run basedpyright src/aish/    # Type check
+uv run basedpyright src/shai/    # Type check
 ```
 
 All three must pass before submitting a PR.
@@ -33,7 +33,7 @@ All three must pass before submitting a PR.
 
 1. Fork the repo and create a feature branch from `main`
 2. Make your changes
-3. Run `uv run python -m pytest && uv run ruff check src/ && uv run basedpyright src/aish/`
+3. Run `uv run python -m pytest && uv run ruff check src/ && uv run basedpyright src/shai/`
 4. Open a PR with a clear description of what changed and why
 
 ## Reporting Issues

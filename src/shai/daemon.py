@@ -1,4 +1,4 @@
-"""aish daemon — asyncio socket server.
+"""shai daemon — asyncio socket server.
 
 Listens on a Unix domain socket, routes JSON requests to the appropriate
 handler (autocomplete, NL command, error correction, history search),
@@ -20,10 +20,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from aish.config import AishConfig
-from aish.context import ContextInfo
-from aish.llm import TIMEOUT_AUTOCOMPLETE, TIMEOUT_HISTORY, TIMEOUT_NL, LLMClient
-from aish.prompts import (
+from shai.config import AishConfig
+from shai.context import ContextInfo
+from shai.llm import TIMEOUT_AUTOCOMPLETE, TIMEOUT_HISTORY, TIMEOUT_NL, LLMClient
+from shai.prompts import (
     autocomplete_system,
     autocomplete_user,
     error_correction_user,
@@ -32,9 +32,9 @@ from aish.prompts import (
     proactive_system,
     proactive_user,
 )
-from aish.safety import check_dangerous, sanitize_history, sanitize_output
+from shai.safety import check_dangerous, sanitize_history, sanitize_output
 
-logger = logging.getLogger("aish")
+logger = logging.getLogger("shai")
 
 RATE_LIMIT_RPM = 60  # max requests per minute to LLM
 
@@ -386,7 +386,7 @@ class AishDaemon:
         pid_path.write_text(str(os.getpid()))
 
         self._last_activity = asyncio.get_event_loop().time()
-        logger.info("aish daemon started (pid %d, socket %s)", os.getpid(), socket_path)
+        logger.info("shai daemon started (pid %d, socket %s)", os.getpid(), socket_path)
 
         async with self._server:
             while True:
@@ -410,12 +410,12 @@ class AishDaemon:
         socket_path.unlink(missing_ok=True)
         pid_path.unlink(missing_ok=True)
 
-        logger.info("aish daemon stopped")
+        logger.info("shai daemon stopped")
 
 
 async def _run() -> None:
     """Run the daemon."""
-    log_path = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "aish"
+    log_path = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "shai"
     log_path.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.DEBUG,
@@ -435,7 +435,7 @@ async def _run() -> None:
 
 
 def main() -> None:
-    """Entry point for `python -m aish.daemon`."""
+    """Entry point for `python -m shai.daemon`."""
     asyncio.run(_run())
 
 

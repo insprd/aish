@@ -1,4 +1,4 @@
-"""Safety checks for aish.
+"""Safety checks for shai.
 
 Dangerous command detection and history/output sanitization before LLM calls.
 """

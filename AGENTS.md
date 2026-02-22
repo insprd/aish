@@ -4,38 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**aish** (AI Shell) is an LLM-powered zsh plugin that provides ghost-text autocomplete, natural language command generation, error correction, and history search — all via a background Python daemon connected to ZLE (Zsh Line Editor) over a Unix domain socket.
+**shai** (AI Shell) is an LLM-powered zsh plugin that provides ghost-text autocomplete, natural language command generation, error correction, and history search — all via a background Python daemon connected to ZLE (Zsh Line Editor) over a Unix domain socket.
 
 ## Architecture
 
 ### Two-process design
 
 ```
-zsh (ZLE widgets)  ←──── Unix domain socket ────→  aishd (Python async daemon)
+zsh (ZLE widgets)  ←──── Unix domain socket ────→  shaid (Python async daemon)
   autocomplete.zsh                                    daemon.py (asyncio)
   nl-command.zsh                                      llm.py (httpx)
-  aish.zsh (main)                                     context.py, safety.py, config.py
+  shai.zsh (main)                                     context.py, safety.py, config.py
 ```
 
-The zsh side sends newline-delimited JSON requests; the daemon responds with completions. The socket lives at `$XDG_RUNTIME_DIR/aish.sock` (fallback: `/tmp/aish-$UID.sock`).
+The zsh side sends newline-delimited JSON requests; the daemon responds with completions. The socket lives at `$XDG_RUNTIME_DIR/shai.sock` (fallback: `/tmp/shai-$UID.sock`).
 
-Shell files are **inlined** into the `eval "$(aish shell-init zsh)"` output at init time — they are NOT sourced at runtime. This avoids path resolution issues with non-standard installs (pipx, uv tool, etc.).
+Shell files are **inlined** into the `eval "$(shai shell-init zsh)"` output at init time — they are NOT sourced at runtime. This avoids path resolution issues with non-standard installs (pipx, uv tool, etc.).
 
 ### File layout
 
 ```
-src/aish/
+src/shai/
   __init__.py
-  __main__.py    – python -m aish entry point
+  __main__.py    – python -m shai entry point
   cli.py         – CLI commands (shell-init, start, stop, status, init, model, provider, etc.)
-  config.py      – ~/.config/aish/config.toml parsing, defaults, env var override
+  config.py      – ~/.config/shai/config.toml parsing, defaults, env var override
   daemon.py      – asyncio socket server, request routing, session buffer, rate limiting, idle timeout
   llm.py         – async LLM client (OpenAI + Anthropic), circuit breaker, caching, prompt caching
   prompts.py     – system/user prompt templates for all request types
   context.py     – cwd/git/env context gathering & caching
   safety.py      – dangerous-command detection, history/output sanitization
   shell/
-    aish.zsh           – precmd/preexec hooks, history helper, auto-reload, cheat sheet
+    shai.zsh           – precmd/preexec hooks, history helper, auto-reload, cheat sheet
     autocomplete.zsh   – ghost text via direct /dev/tty escape codes, zsocket IPC, adaptive debounce
     nl-command.zsh     – Ctrl+G natural-language widget, Ctrl+R history search, Ctrl+Z undo
 tests/
@@ -55,7 +55,7 @@ tests/
 
 \* `last_command` and `last_output` are optional fields sent only for proactive suggestions.
 
-### Configuration (`~/.config/aish/config.toml`)
+### Configuration (`~/.config/shai/config.toml`)
 
 Key sections: `[provider]` (name, api_key, api_base_url, model, autocomplete_model) and `[ui]` (delays, hotkeys, feature toggles). Supports OpenAI and Anthropic.
 
@@ -76,13 +76,13 @@ uv run pytest -v
 
 # Lint & type-check
 uv run ruff check src/
-uv run basedpyright src/aish/
+uv run basedpyright src/shai/
 
 # CLI commands
-uv run aish shell-init zsh    # output shell integration code
-uv run aish start             # start the daemon
-uv run aish stop              # stop the daemon
-uv run aish status            # check daemon status
+uv run shai shell-init zsh    # output shell integration code
+uv run shai start             # start the daemon
+uv run shai stop              # stop the daemon
+uv run shai status            # check daemon status
 ```
 
 ## Key Design Decisions

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from aish.llm import CircuitState, ConnectionHealth, ResponseCache
+from shai.llm import CircuitState, ConnectionHealth, ResponseCache
 
 
 class TestConnectionHealth:

@@ -1,14 +1,14 @@
-# aish: LLM-Powered Shell Plugin
+# shai: LLM-Powered Shell Plugin
 
 ## Overview
 
-**aish** (AI Shell) is an open source shell plugin (zsh first, then bash/fish) that adds two LLM-powered features to any modern terminal emulator (Ghostty, iTerm2, Kitty, Alacritty, WezTerm, etc.). It runs as shell scripts + a lightweight background daemon, requiring zero modifications to the terminal.
+**shai** (AI Shell) is an open source shell plugin (zsh first, then bash/fish) that adds two LLM-powered features to any modern terminal emulator (Ghostty, iTerm2, Kitty, Alacritty, WezTerm, etc.). It runs as shell scripts + a lightweight background daemon, requiring zero modifications to the terminal.
 
 ### Features
 
 1. **Autocomplete** — As you type, the plugin suggests command completions inline (ghost text), powered by an LLM with shell context. Accept with Tab/→.
 2. **Natural Language Command Construction** — Press a hotkey to open a prompt where you describe what you want in plain English. The LLM generates the shell command and places it on your command line for review before execution.
-3. **Error Correction** — When a command fails, aish reads the error output and suggests a corrected command as ghost text on the next prompt. Accept with Tab/→ like autocomplete.
+3. **Error Correction** — When a command fails, shai reads the error output and suggests a corrected command as ghost text on the next prompt. Accept with Tab/→ like autocomplete.
 4. **Natural Language History Search** — Semantic search over shell history using plain English. Press Ctrl+R to describe what you're looking for instead of exact substring matching.
 
 ---
@@ -25,7 +25,7 @@
 │           │                       │              │
 │           ▼                       ▼              │
 │  ┌─────────────────────────────────────────────┐ │
-│  │  aishd (background daemon)                  │ │
+│  │  shaid (background daemon)                  │ │
 │  │  - Receives requests over Unix domain socket│ │
 │  │  - Manages LLM API calls (async, streaming) │ │
 │  │  - Caches context, handles rate limiting     │ │
@@ -57,14 +57,14 @@
   - Creates a virtualenv or uses pipx
   - Installs Python dependencies
   - Prints the shell source line to add to `.zshrc`
-- Implement `aish shell-init zsh` — a CLI subcommand that outputs the sourceable shell integration code. Users add `eval "$(aish shell-init zsh)"` to `.zshrc`. This is the single entry point that loads all ZLE widgets, hooks, and daemon auto-start logic.
+- Implement `shai shell-init zsh` — a CLI subcommand that outputs the sourceable shell integration code. Users add `eval "$(shai shell-init zsh)"` to `.zshrc`. This is the single entry point that loads all ZLE widgets, hooks, and daemon auto-start logic.
 - API key loading with priority order:
-  1. Environment variable (`AISH_API_KEY`)
-  2. Config file (`~/.config/aish/config.toml`)
+  1. Environment variable (`SHAI_API_KEY`)
+  2. Config file (`~/.config/shai/config.toml`)
   3. System keychain (stretch goal)
-- Create a configuration file format (`~/.config/aish/config.toml`) for:
+- Create a configuration file format (`~/.config/shai/config.toml`) for:
   - `provider` — "openai" or "anthropic"
-  - `api_key` — LLM provider API key (or env var `AISH_API_KEY`)
+  - `api_key` — LLM provider API key (or env var `SHAI_API_KEY`)
   - `api_base_url` — API endpoint; defaults per provider, user-configurable for any OpenAI-compatible server
   - `model` — model for NL command construction (e.g. "gpt-4o", "claude-sonnet-4-5")
   - `autocomplete_model` — separate fast model for autocomplete (e.g. "gpt-4o-mini", "claude-haiku-4-5"); defaults to `model` if not set
@@ -84,8 +84,8 @@
 
 ### Phase 2: Daemon Core
 
-- Build a Python daemon (`aishd`) that:
-  - Listens on a Unix domain socket at `$XDG_RUNTIME_DIR/aish.sock` (or `/tmp/aish-$UID.sock`)
+- Build a Python daemon (`shaid`) that:
+  - Listens on a Unix domain socket at `$XDG_RUNTIME_DIR/shai.sock` (or `/tmp/shai-$UID.sock`)
   - Accepts newline-delimited JSON messages from the shell
   - Routes requests to the appropriate handler (autocomplete vs. NL command)
   - Calls the LLM API asynchronously using `asyncio` + `httpx`
@@ -133,7 +133,7 @@
     - In `preexec`: create temp file, save original fds via `exec {fd}>&1`, tee stdout+stderr to temp file via `exec > >(tee ...)  2> >(tee ... >&2)`
     - In `precmd`: restore original fds, read last `proactive_output_lines` (default 50) lines from temp file, strip ANSI escape codes, delete temp file
     - **Interactive command blocklist**: check first word of command against `proactive_capture_blocklist` config (default: vim, nvim, less, top, htop, ssh, tmux, screen, man, watch, fzf, python, node, irb). Skip capture entirely for matching commands to avoid breaking raw terminal mode.
-    - Clean up orphaned temp files on shell startup (glob `/tmp/aish-out-*.XXXXXX`)
+    - Clean up orphaned temp files on shell startup (glob `/tmp/shai-out-*.XXXXXX`)
   - **Heuristic pre-filter** (shell-side, no daemon call):
     - Regex scan of captured output for actionable patterns: phrases like "run", "try", "use", "resume with"; backtick-quoted commands; lines starting with `$` or `>`; known tool patterns (`--set-upstream`, `audit fix`, `--resume=`); action words ("fix", "resolve", "install", "update", "upgrade")
     - Non-zero exit status always qualifies
@@ -152,8 +152,8 @@
   - Next keystroke clears `$POSTDISPLAY` and falls through to normal input
   - Purely shell-side — no daemon communication
 - **First-use hint**:
-  - On the first autocomplete suggestion after onboarding, show a one-time hint in `$POSTDISPLAY`: `"aish: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)"`
-  - Suppressed after first display by writing a `~/.config/aish/.onboarded` marker file
+  - On the first autocomplete suggestion after onboarding, show a one-time hint in `$POSTDISPLAY`: `"shai: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)"`
+  - Suppressed after first display by writing a `~/.config/shai/.onboarded` marker file
 - Performance considerations:
   - The adaptive debounce prevents flooding the LLM API
   - `$POSTDISPLAY` is the correct zsh mechanism for ghost text (no terminal hacks needed)
@@ -202,13 +202,13 @@
 ### Phase 4c: Natural Language History Search
 
 - Create a zsh ZLE widget bound to a configurable hotkey (default `Ctrl+R`) that:
-  - Opens an inline search prompt: `aish history> █`
+  - Opens an inline search prompt: `shai history> █`
   - User types a natural language description of what they're looking for
   - On Enter, sends the query + full shell history to the daemon
   - Daemon uses the LLM to rank history entries by semantic relevance
   - Results displayed as a selectable list (similar to fzf):
     ```
-    aish history> docker command for postgres
+    shai history> docker command for postgres
       → docker exec -it postgres-dev psql -U admin -d myapp
         docker run -d --name postgres-dev -e POSTGRES_PASSWORD=secret postgres:15
         docker logs postgres-dev --tail 50
@@ -228,7 +228,7 @@
   - Results are returned as a ranked list, displayed incrementally if streamed
 - Advantage over native Ctrl+R:
   - Native Ctrl+R is substring search: "postgres" finds it, but "that database command" doesn't
-  - aish replaces the binding with a semantic upgrade — same key, much smarter search
+  - shai replaces the binding with a semantic upgrade — same key, much smarter search
 
 ### Phase 5: Context & History Enrichment
 
@@ -276,48 +276,48 @@
 - **Network resilience** (see Network Resilience Strategy section for full design):
   - **Circuit breaker**: implement CLOSED → OPEN (30s) → HALF-OPEN → CLOSED state machine in the LLM client. 3 consecutive failures trips the breaker. Separate breaker per provider.
   - **Connection health tracking**: `ConnectionHealth` class tracking `last_success_time`, `consecutive_failures`, `avg_latency_ms`, `circuit_state`. When `avg_latency > 2s`, skip proactive suggestions (too slow to be useful).
-  - **`aish status` health display**: show connection state (healthy/degraded/offline), circuit breaker state, last success time, probe countdown when OPEN
+  - **`shai status` health display**: show connection state (healthy/degraded/offline), circuit breaker state, last success time, probe countdown when OPEN
   - Daemon auto-restarts on crash (shell wrapper checks socket liveness)
   - Rate limiting to avoid burning API credits (configurable max requests/min)
-- **`aish init`** — interactive setup wizard:
-  - Detect shell, print `eval "$(aish shell-init zsh)"` source line
+- **`shai init`** — interactive setup wizard:
+  - Detect shell, print `eval "$(shai shell-init zsh)"` source line
   - Prompt for provider (OpenAI / Anthropic), API key, model choices
   - **Hotkey conflict detection**: run `bindkey "^G"` to check existing bindings. If conflict found, explain existing binding, offer alternatives (`Ctrl+]`, `Ctrl+\`, `Ctrl+X Ctrl+G`). Ctrl+R override is intentional (semantic upgrade of native reverse search) and does not trigger a conflict warning.
   - Verify connection (start daemon, test completion)
-  - Write `~/.config/aish/config.toml`
-- **Config hot-reload**: implement the `reload_config` message handler in the daemon. When the CLI updates config via `aish set`/`aish model set`/`aish provider set`, it sends `{"type": "reload_config"}` over the socket. The daemon re-reads `config.toml` and updates model, provider, and all settings without restart.
+  - Write `~/.config/shai/config.toml`
+- **Config hot-reload**: implement the `reload_config` message handler in the daemon. When the CLI updates config via `shai set`/`shai model set`/`shai provider set`, it sends `{"type": "reload_config"}` over the socket. The daemon re-reads `config.toml` and updates model, provider, and all settings without restart.
 - **Full CLI command set**:
-  - `aish start` / `stop` / `status` — manage daemon
-  - `aish init` — setup wizard (re-runnable)
-  - `aish config` — open config file in `$EDITOR`
-  - `aish model` / `aish model list` / `aish model set` — view and change models
-  - `aish provider` / `aish provider set` — view and change provider
-  - `aish set <key> <value>` / `aish get <key>` / `aish reset <key>` / `aish defaults` — config management
-  - `aish history` — show recent AI interactions
-  - `aish help` / `aish help <command>` — help screens
+  - `shai start` / `stop` / `status` — manage daemon
+  - `shai init` — setup wizard (re-runnable)
+  - `shai config` — open config file in `$EDITOR`
+  - `shai model` / `shai model list` / `shai model set` — view and change models
+  - `shai provider` / `shai provider set` — view and change provider
+  - `shai set <key> <value>` / `shai get <key>` / `shai reset <key>` / `shai defaults` — config management
+  - `shai history` — show recent AI interactions
+  - `shai help` / `shai help <command>` — help screens
 - **README.md**: project description, install instructions (pip/pipx/brew), usage guide, config reference, supported terminals list, privacy section documenting what data is sent to the LLM, GIF/screenshot demo
 - **CONTRIBUTING.md**: dev setup, code style, PR process, issue guidelines
 
 ### Phase 8: Homebrew Distribution
 
-- Create a Homebrew tap repository (`homebrew-aish`) containing the formula
+- Create a Homebrew tap repository (`homebrew-shai`) containing the formula
 - Formula responsibilities:
   - Declare dependency on Python 3.8+
   - Install the Python package into a Homebrew-managed virtualenv (using `virtualenv_install_with_resources`)
-  - Symlink the `aish` CLI entry point to Homebrew's bin
+  - Symlink the `shai` CLI entry point to Homebrew's bin
   - Install shell completion files to the appropriate Homebrew paths
 - Tap structure:
   ```
-  homebrew-aish/
+  homebrew-shai/
   └── Formula/
-      └── aish.rb      # Homebrew formula
+      └── shai.rb      # Homebrew formula
   ```
 - Formula auto-update:
   - GitHub Actions workflow in the main repo: on PyPI release, open a PR against the tap repo updating the version and SHA256
   - Or use `brew bump-formula-pr` in CI
 - Post-install caveats:
-  - Formula prints the `eval "$(aish shell-init zsh)"` line and `aish init` instructions via Homebrew's `caveats` block
-  - Users see this on `brew install` and `brew info aish`
+  - Formula prints the `eval "$(shai shell-init zsh)"` line and `shai init` instructions via Homebrew's `caveats` block
+  - Users see this on `brew install` and `brew info shai`
 - **GitHub Actions CI** (set up before first public release):
   - `ci.yml`: on push/PR — lint (`ruff check`), type check (`mypy`), tests (`pytest`)
   - `release.yml`: on version tag — build, publish to PyPI, update Homebrew tap formula
@@ -378,7 +378,7 @@ Connect timeout is intentionally tight (1-2s). On a working connection, TCP+TLS 
 These are speculative suggestions. A retry adds latency for a suggestion that may already be stale. If the request fails, silently drop it. The user hasn't asked for anything — they won't notice the absence.
 
 **NL command / history search: 1 retry with 500ms delay.**
-The user explicitly requested these (pressed Ctrl+G or Ctrl+R) and is waiting. One fast retry covers transient blips (TCP RST, momentary packet loss). If the retry also fails, show a brief error: `aish: couldn't reach API — check your connection`.
+The user explicitly requested these (pressed Ctrl+G or Ctrl+R) and is waiting. One fast retry covers transient blips (TCP RST, momentary packet loss). If the retry also fails, show a brief error: `shai: couldn't reach API — check your connection`.
 
 ### Circuit breaker
 
@@ -398,7 +398,7 @@ State machine:
 | State | Autocomplete | NL command | User sees |
 |---|---|---|---|
 | CLOSED | Normal | Normal | Normal ghost text |
-| OPEN | Instantly returns empty | Returns error immediately: `aish: offline (retrying in Xs)` | No ghost text, NL commands fail fast |
+| OPEN | Instantly returns empty | Returns error immediately: `shai: offline (retrying in Xs)` | No ghost text, NL commands fail fast |
 | HALF-OPEN | 1 probe request allowed | 1 probe request allowed | If probe succeeds, back to normal |
 
 **Why 3 failures / 30s cooldown:**
@@ -433,8 +433,8 @@ class ConnectionHealth:
 |---|---|---|---|---|
 | **Normal connection** | Ghost text in 300-600ms | Ghost text in 0-300ms | Command in 1-3s | Fix in <1s |
 | **Slow connection (>2s RTT)** | Ghost text in 2-3s (may feel laggy) | Skipped (too slow to be useful) | Command in 3-5s (spinner shown) | Fix in 2-3s |
-| **Intermittent drops** | Some suggestions appear, some don't — silent | Same | Occasional `aish: couldn't reach API` — one retry covers most blips | Same as autocomplete |
-| **Fully offline** | No ghost text (circuit breaker trips after 3 failures, <5s) | No ghost text | Instant error: `aish: offline` (no wait) | No suggestion |
+| **Intermittent drops** | Some suggestions appear, some don't — silent | Same | Occasional `shai: couldn't reach API` — one retry covers most blips | Same as autocomplete |
+| **Fully offline** | No ghost text (circuit breaker trips after 3 failures, <5s) | No ghost text | Instant error: `shai: offline` (no wait) | No suggestion |
 | **Connection recovers** | Ghost text resumes within 30s (next circuit breaker probe) | Resumes | Works immediately on next Ctrl+G | Resumes |
 
 **Key UX principle: the shell never hangs.** Every failure path has a bounded time cost:
@@ -461,10 +461,10 @@ self.client = httpx.AsyncClient(
 )
 ```
 
-### `aish status` shows connection health
+### `shai status` shows connection health
 
 ```
-$ aish status
+$ shai status
   daemon:     running (pid 12345, uptime 2h)
   provider:   openai (gpt-4o-mini)
   connection: degraded — 2/5 recent requests failed, avg latency 1200ms
@@ -474,7 +474,7 @@ $ aish status
 
 Or when offline:
 ```
-$ aish status
+$ shai status
   daemon:     running (pid 12345, uptime 2h)
   provider:   openai (gpt-4o-mini)
   connection: offline — circuit breaker OPEN
@@ -490,41 +490,41 @@ $ aish status
 
 **Option A: pipx (recommended)**
 ```bash
-pipx install aish
+pipx install shai
 ```
-Installs in an isolated virtualenv with `aish` on PATH automatically. No virtualenv confusion.
+Installs in an isolated virtualenv with `shai` on PATH automatically. No virtualenv confusion.
 
 **Option B: pip**
 ```bash
-pip install aish
+pip install shai
 ```
 Fallback for users without pipx.
 
 **Option C: Homebrew**
 ```bash
-brew tap aish-shell/aish
-brew install aish
+brew tap shai-shell/shai
+brew install shai
 ```
 Best experience on macOS. Manages PATH, upgrades, and Python dependency automatically.
 
 **Option D: Manual / git clone**
 ```bash
-git clone https://github.com/…/aish.git
-cd aish && ./setup.sh
+git clone https://github.com/…/shai.git
+cd shai && ./setup.sh
 ```
 
 `setup.sh` handles dependencies and virtualenv setup for manual installs only. For pipx/pip/brew, this is handled by the package manager.
 
-### First-run onboarding: `aish init`
+### First-run onboarding: `shai init`
 
-After install, the user runs `aish init`, an interactive setup wizard. The CLI entry point (`bin/aish`) should also detect missing config and suggest `aish init` automatically.
+After install, the user runs `shai init`, an interactive setup wizard. The CLI entry point (`bin/shai`) should also detect missing config and suggest `shai init` automatically.
 
 **Step 1: Detect shell and print source line**
 ```
 Detected: zsh
 Add this to your ~/.zshrc:
 
-  eval "$(aish shell-init zsh)"
+  eval "$(shai shell-init zsh)"
 
 Then restart your shell or run: exec zsh
 ```
@@ -542,7 +542,7 @@ Model for commands [gpt-4o]:
 Model for autocomplete [gpt-4o-mini]:
 ```
 
-Writes `~/.config/aish/config.toml`.
+Writes `~/.config/shai/config.toml`.
 
 **Step 3: Verify connection**
 ```
@@ -554,57 +554,57 @@ You're all set! Open a new shell and start typing.
 
   → Autocomplete appears as ghost text (accept with Tab or →)
   → Press Ctrl+G for natural language command mode
-  → Run `aish status` to check daemon health
-  → Run `aish config` to edit settings
+  → Run `shai status` to check daemon health
+  → Run `shai config` to edit settings
 ```
 
 ### API key handling
 
 Keys are loaded in priority order:
-1. Environment variable (`AISH_API_KEY`) — for dotfile power users and CI
-2. Config file (`~/.config/aish/config.toml`) — primary method, set by `aish init`
+1. Environment variable (`SHAI_API_KEY`) — for dotfile power users and CI
+2. Config file (`~/.config/shai/config.toml`) — primary method, set by `shai init`
 3. System keychain (stretch goal) — `security find-generic-password` on macOS
 
 ### First-use hint
 
 The first time autocomplete fires after onboarding, show a one-time hint:
 ```
-aish: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)
+shai: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)
 ```
-Suppressed after first display by writing a `~/.config/aish/.onboarded` marker file.
+Suppressed after first display by writing a `~/.config/shai/.onboarded` marker file.
 
 ### CLI commands
 
 | Command | Description |
 |---|---|
-| `aish init` | Interactive setup wizard |
-| `aish start` | Start the daemon (normally auto-started on first use) |
-| `aish stop` | Stop the daemon |
-| `aish status` | Show daemon health, connected provider, current models, uptime |
-| `aish config` | Open config file in `$EDITOR` |
-| `aish model` | Show current models for both autocomplete and NL commands |
-| `aish model list` | List available models from the configured provider (queries API) |
-| `aish model set <model>` | Set both autocomplete and NL model |
-| `aish model set --autocomplete <model>` | Set autocomplete model only |
-| `aish model set --nl <model>` | Set NL command model only |
-| `aish provider` | Show current provider and endpoint |
-| `aish provider set <name>` | Switch provider (`openai`, `anthropic`); prompts for API key as needed |
-| `aish history` | Show recent AI interactions |
-| `aish set <key> <value>` | Set any config value (e.g. `aish set autocomplete_delay_ms 500`) |
-| `aish get <key>` | Show current value of a config key |
-| `aish reset <key>` | Reset a config key to its default value |
-| `aish defaults` | Show all config keys with current and default values |
-| `aish help` | Show feature overview and all available commands |
-| `aish help <command>` | Show detailed help for a specific command |
+| `shai init` | Interactive setup wizard |
+| `shai start` | Start the daemon (normally auto-started on first use) |
+| `shai stop` | Stop the daemon |
+| `shai status` | Show daemon health, connected provider, current models, uptime |
+| `shai config` | Open config file in `$EDITOR` |
+| `shai model` | Show current models for both autocomplete and NL commands |
+| `shai model list` | List available models from the configured provider (queries API) |
+| `shai model set <model>` | Set both autocomplete and NL model |
+| `shai model set --autocomplete <model>` | Set autocomplete model only |
+| `shai model set --nl <model>` | Set NL command model only |
+| `shai provider` | Show current provider and endpoint |
+| `shai provider set <name>` | Switch provider (`openai`, `anthropic`); prompts for API key as needed |
+| `shai history` | Show recent AI interactions |
+| `shai set <key> <value>` | Set any config value (e.g. `shai set autocomplete_delay_ms 500`) |
+| `shai get <key>` | Show current value of a config key |
+| `shai reset <key>` | Reset a config key to its default value |
+| `shai defaults` | Show all config keys with current and default values |
+| `shai help` | Show feature overview and all available commands |
+| `shai help <command>` | Show detailed help for a specific command |
 
-#### `aish help`
+#### `shai help`
 
 Full help screen showing features, shortcuts, and all available commands:
 
 ```
-$ aish help
+$ shai help
 
-  aish — AI-powered shell plugin
+  shai — AI-powered shell plugin
 
   Features:
     Autocomplete       Ghost text suggestions as you type (Tab/→ to accept)
@@ -614,20 +614,20 @@ $ aish help
     Cheat Sheet        Ctrl+/ → show shortcuts at the prompt
 
   Commands:
-    aish init                 Setup wizard (re-run to reconfigure)
-    aish status               Daemon health, provider, models, uptime
-    aish model [list|set]     Show, list, or change models
-    aish provider [set]       Show or change LLM provider
-    aish set <key> <value>    Change a config value
-    aish get <key>            Show a config value
-    aish reset <key>          Reset a config key to default
-    aish defaults             Show all settings with defaults
-    aish config               Edit config file in $EDITOR
-    aish start | stop         Manage daemon
-    aish history              Recent AI interactions
-    aish help [command]       This screen, or help for a command
+    shai init                 Setup wizard (re-run to reconfigure)
+    shai status               Daemon health, provider, models, uptime
+    shai model [list|set]     Show, list, or change models
+    shai provider [set]       Show or change LLM provider
+    shai set <key> <value>    Change a config value
+    shai get <key>            Show a config value
+    shai reset <key>          Reset a config key to default
+    shai defaults             Show all settings with defaults
+    shai config               Edit config file in $EDITOR
+    shai start | stop         Manage daemon
+    shai history              Recent AI interactions
+    shai help [command]       This screen, or help for a command
 
-  Run `aish help <command>` for details on any command.
+  Run `shai help <command>` for details on any command.
 ```
 
 #### In-shell cheat sheet (Ctrl+/)
@@ -637,7 +637,7 @@ A ZLE widget bound to `Ctrl+/` that shows a quick-reference overlay in `$POSTDIS
 ```
 $ █
   ┌─────────────────────────────────────────┐
-  │  aish shortcuts                         │
+  │  shai shortcuts                         │
   │                                         │
   │  Tab / →     Accept autocomplete        │
   │  → (word)    Accept one word            │
@@ -663,26 +663,26 @@ Three ways to change configuration, all equivalent:
 **1. CLI commands (recommended for quick changes)**
 ```bash
 # Change any setting by key
-$ aish set autocomplete_delay_ms 500
+$ shai set autocomplete_delay_ms 500
   ✓ autocomplete_delay_ms → 500
 
-$ aish set nl_hotkey "^X"
+$ shai set nl_hotkey "^X"
   ✓ nl_hotkey → Ctrl+X
   ⚠ Restart your shell for hotkey changes to take effect
 
-$ aish set error_correction false
+$ shai set error_correction false
   ✓ error_correction → false
 
 # Check current value
-$ aish get autocomplete_delay_ms
+$ shai get autocomplete_delay_ms
   autocomplete_delay_ms = 500 (default: 200)
 
 # Reset to default
-$ aish reset autocomplete_delay_ms
+$ shai reset autocomplete_delay_ms
   ✓ autocomplete_delay_ms → 300 (default)
 
 # See everything
-$ aish defaults
+$ shai defaults
   provider           = openai           (default: openai)
   model              = gpt-4o           (default: gpt-4o)
   autocomplete_model = gpt-4o-mini      (default: same as model)
@@ -700,31 +700,31 @@ $ aish defaults
 
 **2. Edit config file directly**
 ```bash
-$ aish config   # opens ~/.config/aish/config.toml in $EDITOR
+$ shai config   # opens ~/.config/shai/config.toml in $EDITOR
 ```
 
 **3. Re-run the setup wizard**
 ```bash
-$ aish init     # re-runs interactive setup, preserving existing values as defaults
+$ shai init     # re-runs interactive setup, preserving existing values as defaults
 ```
 
-All three methods write to `~/.config/aish/config.toml`. For non-hotkey changes, the CLI sends `reload_config` to the daemon for immediate effect. Hotkey changes require a shell restart since keybindings are set at shell init time.
+All three methods write to `~/.config/shai/config.toml`. For non-hotkey changes, the CLI sends `reload_config` to the daemon for immediate effect. Hotkey changes require a shell restart since keybindings are set at shell init time.
 
 #### Model switching UX
 
 **Quick switch from the command line:**
 ```bash
 # See what you're running
-$ aish model
+$ shai model
   autocomplete: gpt-4o-mini (openai)
   nl-commands:  gpt-4o (openai)
 
 # Switch autocomplete to haiku
-$ aish model set --autocomplete claude-haiku
+$ shai model set --autocomplete claude-haiku
   ✓ autocomplete model → claude-haiku
 
 # Switch provider
-$ aish provider set anthropic
+$ shai provider set anthropic
   API key: sk-ant-••••••••••••
   ✓ provider → anthropic
   Model for commands [claude-sonnet]:
@@ -732,17 +732,17 @@ $ aish provider set anthropic
   ✓ Ready
 
 # Browse available models
-$ aish model list
+$ shai model list
   Available models (openai):
     gpt-4o          gpt-4o-mini       gpt-4-turbo
     o1              o1-mini           o3-mini
 ```
 
 **How it works under the hood:**
-- `aish model set` and `aish provider set` update `~/.config/aish/config.toml` in place
+- `shai model set` and `shai provider set` update `~/.config/shai/config.toml` in place
 - After writing config, the CLI sends a `{"type": "reload_config"}` message to the daemon over the Unix socket
 - The daemon hot-reloads the config (new model, new endpoint) without restarting — no shell restart needed
-- `aish model list` queries the provider's model list endpoint (`GET /v1/models` for OpenAI-compatible, Anthropic models API)
+- `shai model list` queries the provider's model list endpoint (`GET /v1/models` for OpenAI-compatible, Anthropic models API)
 
 ### Hotkey defaults and conflict detection
 
@@ -750,16 +750,16 @@ $ aish model list
 
 | Hotkey | Feature | Standard meaning in zsh | Conflict risk |
 |---|---|---|---|
-| **Tab** | Accept autocomplete suggestion | Native completion | Low — aish only intercepts when ghost text is visible; otherwise falls through to native Tab completion |
+| **Tab** | Accept autocomplete suggestion | Native completion | Low — shai only intercepts when ghost text is visible; otherwise falls through to native Tab completion |
 | **→** (right arrow) | Accept suggestion / accept word | Move cursor right | Low — only intercepted when ghost text is visible and cursor is at end of line |
 | **Ctrl+G** | NL command prompt | `send-break` (abort current input) | Medium — rarely used, but some users may rely on it |
-| **Ctrl+R** | NL history search | `reverse-search-history` (native reverse search) | Intentional override — aish is a strict semantic upgrade of native Ctrl+R. Users who want the old behavior can rebind via `history_search_hotkey` |
+| **Ctrl+R** | NL history search | `reverse-search-history` (native reverse search) | Intentional override — shai is a strict semantic upgrade of native Ctrl+R. Users who want the old behavior can rebind via `history_search_hotkey` |
 | **Ctrl+/** | Cheat sheet | Undo (in some setups) | Low — `^_` is rarely used; overlay is dismissable with any key |
 | **Esc** | Dismiss ghost text | Vi mode prefix | Low — only clears `$POSTDISPLAY`, doesn't consume the keystroke in normal mode |
 
-#### Conflict detection during `aish init`
+#### Conflict detection during `shai init`
 
-During `aish init`, after detecting the shell, check for conflicts:
+During `shai init`, after detecting the shell, check for conflicts:
 
 ```
 Checking hotkey conflicts...
@@ -768,10 +768,10 @@ Checking hotkey conflicts...
     → Override? This is rarely used. [Y/n]
 
   Ctrl+R (history search): overrides native reverse-search-history ✓
-    aish provides a semantic upgrade — same key, smarter search
+    shai provides a semantic upgrade — same key, smarter search
 
   Tab (accept suggestion): native completion preserved ✓
-    aish only intercepts when ghost text is visible
+    shai only intercepts when ghost text is visible
 ```
 
 Implementation:
@@ -860,7 +860,7 @@ autocomplete_model = "gpt-4o-mini"  # fast model for autocomplete
 ## File Structure
 
 ```
-aish/
+shai/
 ├── LICENSE                     # MIT License
 ├── PLAN.md
 ├── README.md                   # User-facing docs (install, usage, config)
@@ -874,9 +874,9 @@ aish/
 │       ├── bug_report.md
 │       └── feature_request.md
 ├── bin/
-│   └── aish                    # CLI entry point (start/stop/status)
+│   └── shai                    # CLI entry point (start/stop/status)
 ├── src/
-│   └── aish/
+│   └── shai/
 │       ├── __init__.py
 │       ├── daemon.py           # Main daemon (asyncio event loop, socket server)
 │       ├── llm.py              # LLM API client (OpenAI, Anthropic)
@@ -886,13 +886,13 @@ aish/
 │       └── config.py           # Config file parsing
 ├── shell/
 │   ├── zsh/
-│   │   ├── aish.zsh            # Main integration (source this from .zshrc)
+│   │   ├── shai.zsh            # Main integration (source this from .zshrc)
 │   │   ├── autocomplete.zsh    # ZLE autocomplete widget
 │   │   └── nl-command.zsh      # ZLE natural language widget
 │   ├── bash/
-│   │   └── aish.bash           # Bash integration
+│   │   └── shai.bash           # Bash integration
 │   └── fish/
-│       └── aish.fish           # Fish integration
+│       └── shai.fish           # Fish integration
 ├── tests/
 │   ├── test_daemon.py          # Daemon unit tests
 │   ├── test_llm.py             # LLM client tests (mocked)
@@ -905,14 +905,14 @@ aish/
 
 ## Implementation Order for Claude Code
 
-1. **Phase 1 (scaffolding)** — directory structure, `pyproject.toml`, `config.py` with TOML parsing, `default.toml`, LICENSE, `aish shell-init zsh` CLI subcommand, `AISH_API_KEY` env var support
+1. **Phase 1 (scaffolding)** — directory structure, `pyproject.toml`, `config.py` with TOML parsing, `default.toml`, LICENSE, `shai shell-init zsh` CLI subcommand, `SHAI_API_KEY` env var support
 2. **Phase 2 (daemon core)** — asyncio socket server, request routing, `llm.py` with OpenAI + Anthropic clients, streaming, connection pooling, response caching with TTL, per-request-type timeouts, retry policy (none for autocomplete, 1 for NL), all prompt templates in `prompts.py`
 3. **Phase 3 (autocomplete)** — ZLE ghost text widget with adaptive debounce, prefix reuse, request cancellation, proactive suggestions (output capture via exec fd redirection, heuristic pre-filter, interactive command blocklist, background prefetch during precmd), cheat sheet widget (Ctrl+/), first-use onboarding hint
-4. **Phase 4 (NL command)** — Ctrl+G widget, inline `aish>` prompt, partial buffer context, spinner, undo with Ctrl+Z
+4. **Phase 4 (NL command)** — Ctrl+G widget, inline `shai>` prompt, partial buffer context, spinner, undo with Ctrl+Z
 5. **Phase 4b (error correction)** — precmd hook, stderr capture, error correction ghost text, priority over proactive suggestions
 6. **Phase 4c (NL history search)** — Ctrl+R widget (replaces native reverse search), fzf-style result list, semantic ranking, history sanitization
 7. **Phase 5 (context enrichment)** — rolling session buffer (20 cmds × 20 lines), prompt caching (OpenAI auto-cache, Anthropic explicit `cache_control`), cwd/git/env context gathering, context cache in daemon
-8. **Phase 7 (safety/polish)** — dangerous command warnings, history/output sanitization, circuit breaker (CLOSED/OPEN/HALF-OPEN), connection health tracking, `aish status` with health display, `aish init` wizard with hotkey conflict detection, config hot-reload via socket, full CLI command set (model/provider/set/get/reset/defaults/help), README.md, CONTRIBUTING.md
+8. **Phase 7 (safety/polish)** — dangerous command warnings, history/output sanitization, circuit breaker (CLOSED/OPEN/HALF-OPEN), connection health tracking, `shai status` with health display, `shai init` wizard with hotkey conflict detection, config hot-reload via socket, full CLI command set (model/provider/set/get/reset/defaults/help), README.md, CONTRIBUTING.md
 9. **Phase 8 (Homebrew + CI)** — Homebrew tap repo, formula, CI auto-update on release, GitHub Actions `ci.yml` (lint/typecheck/test) and `release.yml` (PyPI publish)
 10. **Phase 6b (bash/fish)** — port ZLE widgets to readline/fish keybindings
 11. **Phase 6 (local models)** — add local model support (Ollama, LM Studio, etc.) after cloud is solid
@@ -926,10 +926,10 @@ Write tests alongside each phase (tests/ directory mirrors src/). Each phase sho
 - [ ] MIT LICENSE file in repo root
 - [ ] README.md with: project description, install instructions (pip/brew/manual), usage guide, config reference, supported terminals list, GIF/screenshot demo
 - [ ] CONTRIBUTING.md with: dev setup, code style, PR process, issue guidelines
-- [ ] pyproject.toml for `pip install aish` (published to PyPI)
+- [ ] pyproject.toml for `pip install shai` (published to PyPI)
 - [ ] GitHub Actions CI: lint (ruff), type check (mypy), tests (pytest)
 - [ ] GitHub Actions release: auto-publish to PyPI on version tag
-- [ ] Homebrew tap (`homebrew-aish`) with formula and CI auto-update on release
+- [ ] Homebrew tap (`homebrew-shai`) with formula and CI auto-update on release
 - [ ] No terminal-specific branding — works with any modern terminal
 - [ ] API keys never logged, never committed, loaded from config file or env var only
 - [ ] All LLM calls clearly documented in privacy section of README (what data is sent, what isn't)

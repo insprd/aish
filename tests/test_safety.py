@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from aish.safety import check_dangerous, sanitize_history, sanitize_text
+from shai.safety import check_dangerous, sanitize_history, sanitize_text
 
 
 class TestDangerousCommands:

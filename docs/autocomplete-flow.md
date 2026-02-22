@@ -73,7 +73,7 @@ $ ls█
 
 # User is mid-path where filesystem completion is better
 $ cd ~/Docu█
-# aish stays quiet — native zsh completion handles this better
+# shai stays quiet — native zsh completion handles this better
 ```
 
 ## Scenario 6: Proactive suggestion — explicit command in output
@@ -259,7 +259,7 @@ Daemon receives request
 zle -F callback fires
   ├── Check: is request_id still current? (user may have started typing)
   │   ├── Stale → discard
-  │   └── Current → store suggestion in __AISH_SUGGESTION, draw ghost text
+  │   └── Current → store suggestion in __SHAI_SUGGESTION, draw ghost text
   └── zle reset-prompt
   │
   ▼
@@ -290,7 +290,7 @@ rendering pipeline entirely. This is the only approach that works reliably on zs
   BUFFER-based approach (like zsh-autosuggestions) unworkable from async contexts.
 - **What works**: `echo -n $'\e[90m'$suggestion$'\e[0m\e[${len}D' > /dev/tty` — prints
   gray text at the cursor, then moves the cursor back. The ghost text is purely visual
-  (not in BUFFER), so accepting it means appending `$__AISH_SUGGESTION` to `$BUFFER`.
+  (not in BUFFER), so accepting it means appending `$__SHAI_SUGGESTION` to `$BUFFER`.
 
 ### IPC: native zsh sockets via `zsh/net/socket`
 
@@ -299,14 +299,14 @@ which connects directly to the Unix domain socket without spawning any external 
 
 ```zsh
 zmodload zsh/net/socket
-zsocket "$__AISH_SOCKET"          # $REPLY = fd number
+zsocket "$__SHAI_SOCKET"          # $REPLY = fd number
 print -u $REPLY "$json_request"   # send
-zle -F $REPLY __aish_on_response  # watch for response async
+zle -F $REPLY __shai_on_response  # watch for response async
 ```
 
 This avoids the overhead of spawning `python3` or `socat` per keystroke. The `zle -F` callback
 fires when data arrives on the socket fd, reads the JSON response, extracts the suggestion,
-and calls `__aish_draw_ghost` — all without modifying BUFFER.
+and calls `__shai_draw_ghost` — all without modifying BUFFER.
 
 ### Debounce: process substitution timer
 
@@ -323,17 +323,17 @@ and avoids external timer processes.
 Keystroke ('a')
   │
   ▼
-__aish_self_insert (ZLE widget, bound to all printable chars via range binding)
-  ├── __aish_clear_suggestion()
+__shai_self_insert (ZLE widget, bound to all printable chars via range binding)
+  ├── __shai_clear_suggestion()
   │   ├── echo -n '\e[0K' > /dev/tty  (erase ghost text from terminal)
-  │   └── __AISH_SUGGESTION=""
+  │   └── __SHAI_SUGGESTION=""
   ├── zle .self-insert (normal character insertion into BUFFER)
-  └── __aish_schedule_complete()
+  └── __shai_schedule_complete()
         │
         ▼
-  __aish_schedule_complete()
+  __shai_schedule_complete()
   ├── Cancel any existing debounce timer: zle -F $timer_fd; exec {fd}<&-
-  ├── ${#BUFFER} < __AISH_MIN_CHARS (3)? → return (skip)
+  ├── ${#BUFFER} < __SHAI_MIN_CHARS (3)? → return (skip)
   ├── Prefix reuse check:
   │   └── If BUFFER extends LAST_BUFFER and SUGGESTION starts with the extra chars,
   │       trim SUGGESTION and redraw — no API call needed
@@ -341,24 +341,24 @@ __aish_self_insert (ZLE widget, bound to all printable chars via range binding)
   │   ├── ${#BUFFER} < 8 → delay = 200ms
   │   └── ${#BUFFER} >= 8 → delay = 100ms
   └── exec {timer_fd}< <(sleep $delay && echo fire)
-      zle -F $timer_fd __aish_debounce_fired
+      zle -F $timer_fd __shai_debounce_fired
         │
         ▼ (after debounce expires)
-  __aish_debounce_fired()
+  __shai_debounce_fired()
   ├── Clean up timer fd
-  └── __aish_send_request "$BUFFER" "$CURSOR"
+  └── __shai_send_request "$BUFFER" "$CURSOR"
         │
         ▼
-  __aish_send_request()
+  __shai_send_request()
   ├── Close any previous in-flight response fd
-  ├── zsocket "$__AISH_SOCKET" → $REPLY = fd
+  ├── zsocket "$__SHAI_SOCKET" → $REPLY = fd
   ├── Build JSON (python3 for proper escaping):
   │   {"type":"complete", "request_id":"ac-$RANDOM",
   │    "buffer":"git sta", "cursor_pos":7,
   │    "cwd":"/Users/matt/project", "shell":"zsh",
   │    "history":[], "exit_status":0}
   ├── print -u $fd "$json"
-  └── zle -F $fd __aish_on_response
+  └── zle -F $fd __shai_on_response
         │
         ▼
   Daemon receives request
@@ -376,18 +376,18 @@ __aish_self_insert (ZLE widget, bound to all printable chars via range binding)
                   "suggestion":" clone https://github.com/..."}
         │
         ▼
-  __aish_on_response() — zle -F callback
+  __shai_on_response() — zle -F callback
   ├── read -r -u $fd response (JSON)
   ├── Clean up fd: zle -F $fd; exec {fd}<&-
   ├── Extract suggestion via shell string ops (no jq/python needed):
   │     suggestion="${response#*\"suggestion\": \"}"
   │     suggestion="${suggestion%%\"*}"
   ├── Validate: non-empty, < 200 chars, no backticks/newlines/prose
-  ├── __AISH_SUGGESTION="$suggestion"
-  └── __aish_draw_ghost()
+  ├── __SHAI_SUGGESTION="$suggestion"
+  └── __shai_draw_ghost()
         │
         ▼
-  __aish_draw_ghost()
+  __shai_draw_ghost()
   └── echo -n $'\e[90m'"$suggestion"$'\e[0m\e['"${#suggestion}"'D' > /dev/tty
       (gray text at cursor → move cursor back → ghost visible, cursor unmoved)
         │
@@ -396,10 +396,10 @@ __aish_self_insert (ZLE widget, bound to all printable chars via range binding)
         │
         ▼
   Next keystroke:
-  ├── → (right arrow) → __aish_accept_suggestion: BUFFER+=$SUGGESTION, CURSOR=end
-  ├── Shift+→         → __aish_accept_word: accept first word, redraw rest as ghost
+  ├── → (right arrow) → __shai_accept_suggestion: BUFFER+=$SUGGESTION, CURSOR=end
+  ├── Shift+→         → __shai_accept_word: accept first word, redraw rest as ghost
   ├── Tab              → accept if suggestion exists, else native zsh completion
-  ├── Enter            → __aish_line_finish: clear ghost, cancel debounce, accept-line
+  ├── Enter            → __shai_line_finish: clear ghost, cancel debounce, accept-line
   ├── Backspace        → clear ghost, delete char, reschedule if len >= min_chars
   └── Any printable    → clear ghost, insert char, restart debounce cycle
 ```
@@ -419,34 +419,34 @@ __aish_self_insert (ZLE widget, bound to all printable chars via range binding)
 ### Original design (preserved for future reference)
 
 ```
-Shell startup (source aish.zsh)
+Shell startup (source shai.zsh)
   └── Set up preexec/precmd/zshexit hooks for output capture
 
 preexec fires (command is about to execute)
   ├── Check blocklist: is this command interactive? (vim, less, top, etc.)
   │     ├── Yes → skip capture, leave fds alone
   │     └── No → capture active
-  ├── Create temp file: /tmp/aish-out-$$.XXXXXX
-  ├── Save original fds: exec {__AISH_STDOUT_BAK}>&1 {__AISH_STDERR_BAK}>&2
-  ├── Create two FIFOs: /tmp/aish-fo-$$.XXXXXX and /tmp/aish-fe-$$.XXXXXX
+  ├── Create temp file: /tmp/shai-out-$$.XXXXXX
+  ├── Save original fds: exec {__SHAI_STDOUT_BAK}>&1 {__SHAI_STDERR_BAK}>&2
+  ├── Create two FIFOs: /tmp/shai-fo-$$.XXXXXX and /tmp/shai-fe-$$.XXXXXX
   ├── Start background tee processes with PID tracking:
-  │     tee -a "$file" < "$fifo_out" >&$__AISH_STDOUT_BAK &
-  │     __AISH_TEE_OUT_PID=$!
-  │     tee -a "$file" < "$fifo_err" >&$__AISH_STDERR_BAK &
-  │     __AISH_TEE_ERR_PID=$!
+  │     tee -a "$file" < "$fifo_out" >&$__SHAI_STDOUT_BAK &
+  │     __SHAI_TEE_OUT_PID=$!
+  │     tee -a "$file" < "$fifo_err" >&$__SHAI_STDERR_BAK &
+  │     __SHAI_TEE_ERR_PID=$!
   ├── Redirect stdout/stderr to FIFOs:
   │     exec > "$fifo_out" 2> "$fifo_err"
   ├── Unlink FIFOs (open fds keep them alive)
-  └── Store command name: __AISH_LAST_CMD="$1"
+  └── Store command name: __SHAI_LAST_CMD="$1"
 
 Command runs normally (user sees all output in real time via tee)
 
 precmd fires (command finished, prompt about to draw)
   ├── Restore original fds:
-  │     exec 1>&$__AISH_STDOUT_BAK 2>&$__AISH_STDERR_BAK
-  │     exec {__AISH_STDOUT_BAK}>&- {__AISH_STDERR_BAK}>&-
+  │     exec 1>&$__SHAI_STDOUT_BAK 2>&$__SHAI_STDERR_BAK
+  │     exec {__SHAI_STDOUT_BAK}>&- {__SHAI_STDERR_BAK}>&-
   ├── Kill and wait tee processes (prevents leaking):
-  │     for _pid in $__AISH_TEE_OUT_PID $__AISH_TEE_ERR_PID; do
+  │     for _pid in $__SHAI_TEE_OUT_PID $__SHAI_TEE_ERR_PID; do
   │         kill -0 $_pid && kill $_pid; wait $_pid
   │     done
   ├── Read last 50 lines of temp file
@@ -566,8 +566,8 @@ Three parameters significantly affect the quality and verbosity of autocomplete 
 | Accept word-by-word | Shift+→ (right arrow) | Lets user cherry-pick parts of a suggestion |
 | Dismiss | Any non-accept key clears ghost text | Typing clears ghost text and starts a new cycle; no explicit Esc binding needed |
 | Debounce | `exec {fd}< <(sleep $delay && echo fire)` + `zle -F` | Process substitution timer avoids `sched` limitations; fd integrates with ZLE event loop |
-| Debounce timing | 200ms base / 100ms for long buffers (all configurable) | Adaptive — `__AISH_DELAY`, `__AISH_DELAY_SHORT`, `__AISH_DELAY_THRESHOLD` |
-| Min chars | 3 (configurable via `__AISH_MIN_CHARS`) | Single-char suggestions are rarely useful |
+| Debounce timing | 200ms base / 100ms for long buffers (all configurable) | Adaptive — `__SHAI_DELAY`, `__SHAI_DELAY_SHORT`, `__SHAI_DELAY_THRESHOLD` |
+| Min chars | 3 (configurable via `__SHAI_MIN_CHARS`) | Single-char suggestions are rarely useful |
 | Proactive on empty buffer | Planned but output capture not yet implemented | Requires non-invasive output capture (FIFO/tee approach was too invasive) |
 | Completion spacing | `_ensure_leading_space()` in daemon for `-\|>&;<()` chars | LLMs sometimes omit leading spaces; heuristic adds them for flag/operator tokens |
 | Code fence removal | `_strip_code_fences()` regex in daemon | LLMs sometimes wrap responses in \`\`\`...\`\`\` blocks; regex unwraps them |
@@ -607,7 +607,7 @@ Three parameters significantly affect the quality and verbosity of autocomplete 
 - **Output capture breaks an interactive program** — Blocklist prevents capture for known interactive commands. If an unlisted program misbehaves, user can add it to `proactive_capture_blocklist` in config.
 - **Very long output (>1000 lines)** — Only the last 50 lines are captured for Tier 1 (per-command). The rolling session buffer stores only the last 20 lines per command, so even verbose output doesn't bloat the session context.
 - **Output contains sensitive data** — Same sanitization as history (strip lines matching password/token/secret patterns) before sending to LLM. Applied to both per-command output and session buffer entries.
-- **Temp file cleanup** — If the shell exits abnormally (kill -9), orphaned temp files are cleaned up on next startup via a glob on `/tmp/aish-out-*.XXXXXX`.
+- **Temp file cleanup** — If the shell exits abnormally (kill -9), orphaned temp files are cleaned up on next startup via a glob on `/tmp/shai-out-*.XXXXXX`.
 - **Heuristic false negative** — Occasionally misses an actionable output. Acceptable tradeoff — the heuristic is tuned for recall over precision, and the cost of a miss is just "no suggestion shown."
 - **Piped commands** — For pipelines (`cmd1 | cmd2`), only the final command's output is captured. This is correct behavior — the final output is what the user sees.
 - **Session buffer overflow** — Circular buffer drops oldest entries when it exceeds 20 commands. Most relevant context is recent; old commands rarely matter for proactive suggestions.

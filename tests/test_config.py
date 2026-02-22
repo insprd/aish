@@ -1,4 +1,4 @@
-"""Tests for aish config parsing."""
+"""Tests for shai config parsing."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from aish.config import AishConfig, ProviderConfig
+from shai.config import AishConfig, ProviderConfig
 
 
 class TestDefaults:
@@ -111,7 +111,7 @@ proactive_suggestions = false
 
 
 class TestEnvVarOverride:
-    """Test AISH_API_KEY environment variable override."""
+    """Test SHAI_API_KEY environment variable override."""
 
     def test_env_var_overrides_config_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -121,12 +121,12 @@ class TestEnvVarOverride:
 [provider]
 api_key = "from-file"
 """)
-        monkeypatch.setenv("AISH_API_KEY", "from-env")
+        monkeypatch.setenv("SHAI_API_KEY", "from-env")
         config = AishConfig.load(config_file)
         assert config.provider.api_key == "from-env"
 
     def test_env_var_when_no_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("AISH_API_KEY", "from-env")
+        monkeypatch.setenv("SHAI_API_KEY", "from-env")
         config = AishConfig.load(tmp_path / "nonexistent.toml")
         assert config.provider.api_key == "from-env"
 
@@ -136,7 +136,7 @@ api_key = "from-file"
 [provider]
 api_key = "from-file"
 """)
-        monkeypatch.delenv("AISH_API_KEY", raising=False)
+        monkeypatch.delenv("SHAI_API_KEY", raising=False)
         config = AishConfig.load(config_file)
         assert config.provider.api_key == "from-file"
 
@@ -147,12 +147,12 @@ class TestSocketPath:
     def test_xdg_runtime_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("XDG_RUNTIME_DIR", "/run/user/1000")
         config = AishConfig()
-        assert config.get_socket_path() == Path("/run/user/1000/aish.sock")
-        assert config.get_pid_path() == Path("/run/user/1000/aish.pid")
+        assert config.get_socket_path() == Path("/run/user/1000/shai.sock")
+        assert config.get_pid_path() == Path("/run/user/1000/shai.pid")
 
     def test_fallback_tmp(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
         config = AishConfig()
         uid = os.getuid()
-        assert config.get_socket_path() == Path(f"/tmp/aish-{uid}.sock")
-        assert config.get_pid_path() == Path(f"/tmp/aish-{uid}.pid")
+        assert config.get_socket_path() == Path(f"/tmp/shai-{uid}.sock")
+        assert config.get_pid_path() == Path(f"/tmp/shai-{uid}.pid")

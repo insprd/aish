@@ -1,6 +1,6 @@
-"""Configuration parsing for aish.
+"""Configuration parsing for shai.
 
-Loads settings from ~/.config/aish/config.toml with env var overrides.
+Loads settings from ~/.config/shai/config.toml with env var overrides.
 """
 
 from __future__ import annotations
@@ -17,10 +17,10 @@ except ModuleNotFoundError:
 
 
 def _config_dir() -> Path:
-    """Return the aish config directory (~/.config/aish)."""
+    """Return the shai config directory (~/.config/shai)."""
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg) if xdg else Path.home() / ".config"
-    return base / "aish"
+    return base / "shai"
 
 
 def _default_config_path() -> Path:
@@ -112,7 +112,7 @@ class AishConfig:
         )
 
         # Env var override for API key (highest priority)
-        env_key = os.environ.get("AISH_API_KEY")
+        env_key = os.environ.get("SHAI_API_KEY")
         if env_key:
             provider.api_key = env_key
 
@@ -273,12 +273,12 @@ class AishConfig:
         """Return the daemon socket path."""
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
         if runtime_dir:
-            return Path(runtime_dir) / "aish.sock"
-        return Path(f"/tmp/aish-{os.getuid()}.sock")
+            return Path(runtime_dir) / "shai.sock"
+        return Path(f"/tmp/shai-{os.getuid()}.sock")
 
     def get_pid_path(self) -> Path:
         """Return the daemon PID file path."""
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
         if runtime_dir:
-            return Path(runtime_dir) / "aish.pid"
-        return Path(f"/tmp/aish-{os.getuid()}.pid")
+            return Path(runtime_dir) / "shai.pid"
+        return Path(f"/tmp/shai-{os.getuid()}.pid")

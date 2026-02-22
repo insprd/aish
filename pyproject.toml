@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "aish"
-version = "0.1.0"
+name = "shai"
+version = "0.2.0"
 description = "AI-powered shell plugin — ghost-text autocomplete, natural language commands, error correction, and history search"
 readme = "README.md"
 license = "MIT"
@@ -33,10 +33,10 @@ dev = [
 ]
 
 [project.scripts]
-aish = "aish.cli:main"
+shai = "shai.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/aish"]
+packages = ["src/shai"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

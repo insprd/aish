@@ -1,4 +1,4 @@
-"""CLI entry point for aish."""
+"""CLI entry point for shai."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import sys
 import time
 from pathlib import Path
 
-from aish.config import AishConfig
+from shai.config import AishConfig
 
 
 def _strip_control_chars(s: str) -> str:
@@ -27,7 +27,7 @@ def _strip_control_chars(s: str) -> str:
 
 
 def _get_src_dir() -> str:
-    """Return the aish Python source directory for auto-reload detection."""
+    """Return the shai Python source directory for auto-reload detection."""
     return str(Path(__file__).resolve().parent)
 
 
@@ -36,27 +36,27 @@ def _shell_init_zsh(config: AishConfig) -> None:
     src_dir = _get_src_dir()
     shell_dir = Path(__file__).resolve().parent / "shell"
     socket_path = config.get_socket_path()
-    # Find the bin directory containing the aish entry point
+    # Find the bin directory containing the shai entry point
     bin_dir = str(Path(sys.executable).resolve().parent)
 
-    print(f'''# aish — AI-powered shell plugin
-# Add to .zshrc: eval "$(aish shell-init zsh)"
+    print(f'''# shai — AI-powered shell plugin
+# Add to .zshrc: eval "$(shai shell-init zsh)"
 
-export __AISH_SRC_DIR="{src_dir}"
-export __AISH_SOCKET="{socket_path}"
+export __SHAI_SRC_DIR="{src_dir}"
+export __SHAI_SOCKET="{socket_path}"
 
-# Ensure aish CLI is on PATH
+# Ensure shai CLI is on PATH
 [[ ":$PATH:" != *":{bin_dir}:"* ]] && export PATH="{bin_dir}:$PATH"
 
 # Auto-start daemon if not running
-if [[ ! -S "$__AISH_SOCKET" ]]; then
-    aish start --quiet &>/dev/null &!
+if [[ ! -S "$__SHAI_SOCKET" ]]; then
+    shai start --quiet &>/dev/null &!
 else
     # Probe socket liveness — stale file from crashed daemon?
     zmodload zsh/net/socket 2>/dev/null
-    if ! zsocket "$__AISH_SOCKET" 2>/dev/null; then
-        rm -f "$__AISH_SOCKET" 2>/dev/null
-        aish start --quiet &>/dev/null &!
+    if ! zsocket "$__SHAI_SOCKET" 2>/dev/null; then
+        rm -f "$__SHAI_SOCKET" 2>/dev/null
+        shai start --quiet &>/dev/null &!
     else
         exec {{REPLY}}<&- 2>/dev/null
     fi
@@ -64,7 +64,7 @@ fi
 ''')
 
     # Inline shell integration files (avoids runtime source path issues)
-    for name in ("aish.zsh", "autocomplete.zsh", "nl-command.zsh"):
+    for name in ("shai.zsh", "autocomplete.zsh", "nl-command.zsh"):
         source_file = shell_dir / name
         if source_file.exists():
             print(f"# ── {name} {'─' * (60 - len(name))}")
@@ -74,17 +74,17 @@ fi
 
 
 def _cmd_shell_init(args: argparse.Namespace) -> None:
-    """Handle `aish shell-init <shell>`."""
+    """Handle `shai shell-init <shell>`."""
     config = AishConfig.load()
     shell = args.shell
     if shell != "zsh":
-        print(f"aish: shell '{shell}' is not yet supported (only zsh)", file=sys.stderr)
+        print(f"shai: shell '{shell}' is not yet supported (only zsh)", file=sys.stderr)
         sys.exit(1)
     _shell_init_zsh(config)
 
 
 def _cmd_start(args: argparse.Namespace) -> None:
-    """Handle `aish start`."""
+    """Handle `shai start`."""
     config = AishConfig.load()
     pid_path = config.get_pid_path()
     socket_path = config.get_socket_path()
@@ -95,7 +95,7 @@ def _cmd_start(args: argparse.Namespace) -> None:
             pid = int(pid_path.read_text().strip())
             os.kill(pid, 0)  # Check if process exists
             if not getattr(args, "quiet", False):
-                print(f"aish: daemon already running (pid {pid})")
+                print(f"shai: daemon already running (pid {pid})")
             return
         except (ProcessLookupError, ValueError):
             # Stale PID file
@@ -103,7 +103,7 @@ def _cmd_start(args: argparse.Namespace) -> None:
             socket_path.unlink(missing_ok=True)
 
     # Start daemon as a background process
-    daemon_cmd = [sys.executable, "-m", "aish.daemon"]
+    daemon_cmd = [sys.executable, "-m", "shai.daemon"]
     proc = subprocess.Popen(
         daemon_cmd,
         stdout=subprocess.DEVNULL,
@@ -114,34 +114,34 @@ def _cmd_start(args: argparse.Namespace) -> None:
     pid_path.write_text(str(proc.pid))
 
     if not getattr(args, "quiet", False):
-        print(f"aish: daemon started (pid {proc.pid})")
+        print(f"shai: daemon started (pid {proc.pid})")
 
 
 def _cmd_stop(args: argparse.Namespace) -> None:
-    """Handle `aish stop`."""
+    """Handle `shai stop`."""
     config = AishConfig.load()
     pid_path = config.get_pid_path()
     socket_path = config.get_socket_path()
 
     if not pid_path.exists():
-        print("aish: daemon not running")
+        print("shai: daemon not running")
         return
 
     try:
         pid = int(pid_path.read_text().strip())
         os.kill(pid, signal.SIGTERM)
-        print(f"aish: daemon stopped (pid {pid})")
+        print(f"shai: daemon stopped (pid {pid})")
     except ProcessLookupError:
-        print("aish: daemon not running (stale pid file)")
+        print("shai: daemon not running (stale pid file)")
     except ValueError:
-        print("aish: invalid pid file")
+        print("shai: invalid pid file")
 
     pid_path.unlink(missing_ok=True)
     socket_path.unlink(missing_ok=True)
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
-    """Handle `aish status`."""
+    """Handle `shai status`."""
     config = AishConfig.load()
     pid_path = config.get_pid_path()
 
@@ -211,8 +211,8 @@ def _print_health(health: dict) -> None:
 # ── Init wizard ──────────────────────────────────────────────────────────────
 
 def _cmd_init(args: argparse.Namespace) -> None:
-    """Handle `aish init` — interactive setup wizard."""
-    print("  aish — AI-powered shell plugin\n")
+    """Handle `shai init` — interactive setup wizard."""
+    print("  shai — AI-powered shell plugin\n")
 
     # Step 1: Detect shell and add integration
     shell = os.environ.get("SHELL", "").rsplit("/", 1)[-1] or "zsh"
@@ -221,12 +221,12 @@ def _cmd_init(args: argparse.Namespace) -> None:
         print("  ⚠ Only zsh is supported currently. Proceeding with zsh.")
         shell = "zsh"
 
-    init_line = f'eval "$(aish shell-init {shell})"'
+    init_line = f'eval "$(shai shell-init {shell})"'
     rc_path = Path.home() / f".{shell}rc"
     already_installed = False
     if rc_path.exists():
         rc_content = rc_path.read_text()
-        already_installed = "aish shell-init" in rc_content
+        already_installed = "shai shell-init" in rc_content
 
     if already_installed:
         print(f"\n  ✓ Shell integration already in ~/{rc_path.name}")
@@ -235,7 +235,7 @@ def _cmd_init(args: argparse.Namespace) -> None:
         add = input().strip()
         if add.lower() != "n":
             with open(rc_path, "a") as f:
-                f.write(f"\n# Added by aish\n{init_line}\n")
+                f.write(f"\n# Added by shai\n{init_line}\n")
             print(f"  ✓ Added to ~/{rc_path.name}")
         else:
             print(f'\n  Add this to your ~/{rc_path.name} manually:\n')
@@ -257,9 +257,9 @@ def _cmd_init(args: argparse.Namespace) -> None:
     }
 
     api_key = ""
-    env_key = os.environ.get("AISH_API_KEY", "")
+    env_key = os.environ.get("SHAI_API_KEY", "")
     if env_key:
-        print("\n  API key found in AISH_API_KEY environment variable ✓")
+        print("\n  API key found in SHAI_API_KEY environment variable ✓")
         api_key = ""  # Don't store in config if env var is set
     else:
         api_key = getpass.getpass("\n  API key: ")
@@ -305,20 +305,20 @@ def _cmd_init(args: argparse.Namespace) -> None:
         else:
             print("  ⚠ Daemon started but config reload failed")
     except OSError:
-        print("  ⚠ Could not connect to daemon — run 'aish start' manually")
+        print("  ⚠ Could not connect to daemon — run 'shai start' manually")
 
     print("\n  You're all set! Open a new shell and start typing.\n")
     print("    → Autocomplete appears as ghost text (accept with Tab or →)")
     print("    → Press Ctrl+G for natural language command mode")
     print("    → Press Ctrl+R to search history in plain English")
-    print("    → Run `aish status` to check daemon health")
-    print("    → Run `aish help` for all commands\n")
+    print("    → Run `shai status` to check daemon health")
+    print("    → Run `shai help` for all commands\n")
 
 
 # ── Config commands ──────────────────────────────────────────────────────────
 
 def _cmd_config(args: argparse.Namespace) -> None:
-    """Handle `aish config` — open config in $EDITOR."""
+    """Handle `shai config` — open config in $EDITOR."""
     config = AishConfig.load()
     config_path = config.config_path
 
@@ -349,7 +349,7 @@ def _send_reload(config: AishConfig) -> None:
 
 
 def _cmd_set(args: argparse.Namespace) -> None:
-    """Handle `aish set <key> <value>`."""
+    """Handle `shai set <key> <value>`."""
     config = AishConfig.load()
     key = args.key
     value = args.value
@@ -360,20 +360,20 @@ def _cmd_set(args: argparse.Namespace) -> None:
         if "hotkey" in key:
             print("  ⚠ Restart your shell for hotkey changes to take effect")
     else:
-        print(f"  aish: unknown config key '{key}'", file=sys.stderr)
-        print("  Run `aish defaults` to see available keys", file=sys.stderr)
+        print(f"  shai: unknown config key '{key}'", file=sys.stderr)
+        print("  Run `shai defaults` to see available keys", file=sys.stderr)
         sys.exit(1)
 
 
 def _cmd_get(args: argparse.Namespace) -> None:
-    """Handle `aish get <key>`."""
+    """Handle `shai get <key>`."""
     config = AishConfig.load()
     key = args.key
     value = config.get_flat(key)
     default = config.get_default(key)
 
     if value is None and key not in AishConfig.FLAT_KEYS:
-        print(f"  aish: unknown config key '{key}'", file=sys.stderr)
+        print(f"  shai: unknown config key '{key}'", file=sys.stderr)
         sys.exit(1)
 
     if value == default:
@@ -383,7 +383,7 @@ def _cmd_get(args: argparse.Namespace) -> None:
 
 
 def _cmd_reset(args: argparse.Namespace) -> None:
-    """Handle `aish reset <key>`."""
+    """Handle `shai reset <key>`."""
     config = AishConfig.load()
     key = args.key
 
@@ -392,12 +392,12 @@ def _cmd_reset(args: argparse.Namespace) -> None:
         print(f"  ✓ {key} → {default} (default)")
         _send_reload(config)
     else:
-        print(f"  aish: unknown config key '{key}'", file=sys.stderr)
+        print(f"  shai: unknown config key '{key}'", file=sys.stderr)
         sys.exit(1)
 
 
 def _cmd_defaults(args: argparse.Namespace) -> None:
-    """Handle `aish defaults`."""
+    """Handle `shai defaults`."""
     config = AishConfig.load()
     for key in AishConfig.FLAT_KEYS:
         value = config.get_flat(key)
@@ -416,7 +416,7 @@ def _cmd_defaults(args: argparse.Namespace) -> None:
 # ── Model commands ───────────────────────────────────────────────────────────
 
 def _cmd_model(args: argparse.Namespace) -> None:
-    """Handle `aish model`."""
+    """Handle `shai model`."""
     config = AishConfig.load()
     ac = config.provider.effective_autocomplete_model
     nl = config.provider.model
@@ -426,7 +426,7 @@ def _cmd_model(args: argparse.Namespace) -> None:
 
 
 def _cmd_model_set(args: argparse.Namespace) -> None:
-    """Handle `aish model set <model>`."""
+    """Handle `shai model set <model>`."""
     config = AishConfig.load()
     model = args.model
 
@@ -451,25 +451,25 @@ def _cmd_model_set(args: argparse.Namespace) -> None:
 # ── Provider commands ────────────────────────────────────────────────────────
 
 def _cmd_provider(args: argparse.Namespace) -> None:
-    """Handle `aish provider`."""
+    """Handle `shai provider`."""
     config = AishConfig.load()
     print(f"  provider: {config.provider.name}")
     print(f"  endpoint: {config.provider.effective_api_base_url}")
 
 
 def _cmd_provider_set(args: argparse.Namespace) -> None:
-    """Handle `aish provider set <name>`."""
+    """Handle `shai provider set <name>`."""
     config = AishConfig.load()
     name = args.name
 
     if name not in ("openai", "anthropic"):
-        print(f"  aish: unknown provider '{name}' (use 'openai' or 'anthropic')")
+        print(f"  shai: unknown provider '{name}' (use 'openai' or 'anthropic')")
         sys.exit(1)
 
     config.provider.name = name
 
     # Prompt for API key if switching providers
-    env_key = os.environ.get("AISH_API_KEY", "")
+    env_key = os.environ.get("SHAI_API_KEY", "")
     if not env_key:
         api_key = getpass.getpass("  API key: ")
         config.provider.api_key = api_key
@@ -495,7 +495,7 @@ def _cmd_provider_set(args: argparse.Namespace) -> None:
 # ── Help command ─────────────────────────────────────────────────────────────
 
 HELP_TEXT = """\
-  aish — AI-powered shell plugin
+  shai — AI-powered shell plugin
 
   Features:
     Autocomplete       Ghost text suggestions as you type (Tab/→ to accept)
@@ -505,67 +505,67 @@ HELP_TEXT = """\
     Cheat Sheet        Ctrl+/ → show shortcuts at the prompt
 
   Commands:
-    aish init                 Setup wizard (re-run to reconfigure)
-    aish status               Daemon health, provider, models, uptime
-    aish model [set]          Show or change models
-    aish provider [set]       Show or change LLM provider
-    aish set <key> <value>    Change a config value
-    aish get <key>            Show a config value
-    aish reset <key>          Reset a config key to default
-    aish defaults             Show all settings with defaults
-    aish config               Edit config file in $EDITOR
-    aish start | stop         Manage daemon
-    aish help                 This screen
+    shai init                 Setup wizard (re-run to reconfigure)
+    shai status               Daemon health, provider, models, uptime
+    shai model [set]          Show or change models
+    shai provider [set]       Show or change LLM provider
+    shai set <key> <value>    Change a config value
+    shai get <key>            Show a config value
+    shai reset <key>          Reset a config key to default
+    shai defaults             Show all settings with defaults
+    shai config               Edit config file in $EDITOR
+    shai start | stop         Manage daemon
+    shai help                 This screen
 
-  Run `aish help <command>` for details on any command.
+  Run `shai help <command>` for details on any command.
 """
 
 HELP_COMMANDS: dict[str, str] = {
     "init": (
-        "  aish init\n\n  Interactive setup wizard. Detects your shell,\n"
+        "  shai init\n\n  Interactive setup wizard. Detects your shell,\n"
         "  prompts for LLM provider and API key, writes config,\n"
         "  and verifies the connection. Safe to re-run."
     ),
     "start": (
-        "  aish start [--quiet]\n\n  Start the background daemon.\n"
+        "  shai start [--quiet]\n\n  Start the background daemon.\n"
         "  Auto-starts on first use via shell-init."
     ),
-    "stop": "  aish stop\n\n  Stop the background daemon.",
+    "stop": "  shai stop\n\n  Stop the background daemon.",
     "status": (
-        "  aish status\n\n  Show daemon health: running state, PID,\n"
+        "  shai status\n\n  Show daemon health: running state, PID,\n"
         "  uptime, provider, models, connection quality."
     ),
     "model": (
-        "  aish model\n  aish model set <model>\n"
-        "  aish model set --autocomplete <model>\n"
-        "  aish model set --nl <model>\n\n"
+        "  shai model\n  shai model set <model>\n"
+        "  shai model set --autocomplete <model>\n"
+        "  shai model set --nl <model>\n\n"
         "  Show or change models. Without flags, sets both."
     ),
     "provider": (
-        "  aish provider\n  aish provider set <name>\n\n"
+        "  shai provider\n  shai provider set <name>\n\n"
         "  Show or switch provider (openai, anthropic).\n"
         "  Prompts for API key and models when switching."
     ),
     "set": (
-        "  aish set <key> <value>\n\n  Set any config value.\n"
-        "  Example: aish set autocomplete_delay_ms 300\n\n"
-        "  Run `aish defaults` to see available keys."
+        "  shai set <key> <value>\n\n  Set any config value.\n"
+        "  Example: shai set autocomplete_delay_ms 300\n\n"
+        "  Run `shai defaults` to see available keys."
     ),
-    "get": "  aish get <key>\n\n  Show current and default value of a config key.",
-    "reset": "  aish reset <key>\n\n  Reset a config key to its default value.",
-    "defaults": "  aish defaults\n\n  Show all config keys with current and default values.",
-    "config": "  aish config\n\n  Open ~/.config/aish/config.toml in $EDITOR.",
+    "get": "  shai get <key>\n\n  Show current and default value of a config key.",
+    "reset": "  shai reset <key>\n\n  Reset a config key to its default value.",
+    "defaults": "  shai defaults\n\n  Show all config keys with current and default values.",
+    "config": "  shai config\n\n  Open ~/.config/shai/config.toml in $EDITOR.",
 }
 
 
 def _cmd_help(args: argparse.Namespace) -> None:
-    """Handle `aish help [command]`."""
+    """Handle `shai help [command]`."""
     command = getattr(args, "help_command", None)
     if command and command in HELP_COMMANDS:
         print(HELP_COMMANDS[command])
     elif command:
-        print(f"  aish: unknown command '{command}'")
-        print("  Run `aish help` to see all commands.")
+        print(f"  shai: unknown command '{command}'")
+        print("  Run `shai help` to see all commands.")
     else:
         print(HELP_TEXT)
 
@@ -573,7 +573,7 @@ def _cmd_help(args: argparse.Namespace) -> None:
 def main(argv: list[str] | None = None) -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        prog="aish",
+        prog="shai",
         description="AI-powered shell plugin",
     )
     subparsers = parser.add_subparsers(dest="command")

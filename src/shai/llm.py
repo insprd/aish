@@ -1,4 +1,4 @@
-"""Async LLM client for aish.
+"""Async LLM client for shai.
 
 Supports OpenAI and Anthropic APIs with circuit breaker, caching,
 connection pooling, and per-request-type timeouts.
@@ -15,9 +15,9 @@ from typing import Any
 
 import httpx
 
-from aish.config import AishConfig
+from shai.config import AishConfig
 
-logger = logging.getLogger("aish.llm")
+logger = logging.getLogger("shai.llm")
 
 
 class CircuitState(Enum):

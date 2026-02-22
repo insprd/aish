@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from aish.config import AishConfig
-from aish.daemon import AishDaemon
+from shai.config import AishConfig
+from shai.daemon import AishDaemon
 
 
 class TestDaemonIntegration:
@@ -23,7 +23,7 @@ class TestDaemonIntegration:
         config = AishConfig()
         # Use /tmp for socket to avoid AF_UNIX path length limit on macOS
         import tempfile
-        sock_dir = Path(tempfile.mkdtemp(prefix="aish-test-"))
+        sock_dir = Path(tempfile.mkdtemp(prefix="shai-test-"))
         config._test_socket_path = sock_dir / "test.sock"
         config._test_pid_path = sock_dir / "test.pid"
         return config
