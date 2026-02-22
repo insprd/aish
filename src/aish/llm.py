@@ -241,7 +241,7 @@ class LLMClient:
         base_url = self.config.provider.effective_api_base_url.rstrip("/")
         response = await client.post(
             f"{base_url}/chat/completions",
-            json={"model": model, "messages": messages, "temperature": 0},
+            json={"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 200},
             headers={
                 "Authorization": f"Bearer {self.config.provider.api_key}",
                 "Content-Type": "application/json",
@@ -276,8 +276,8 @@ class LLMClient:
         body: dict[str, Any] = {
             "model": model,
             "messages": anthropic_messages,
-            "max_tokens": 1024,
-            "temperature": 0,
+            "max_tokens": 200,
+            "temperature": 0.3,
         }
         if system_text:
             body["system"] = [

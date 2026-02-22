@@ -53,7 +53,7 @@ Recent commands:
 {hist_text}
 Last exit status: {exit_status}
 
-The user has typed: {buffer!r}
+The user has typed: {buffer}
 Return ONLY the completion suffix — the exact text to append directly after what they typed.
 Include a leading space if one is needed (e.g. to separate a command from its arguments).
 Do not repeat what they already typed.
