@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 
 from aish.config import AishConfig
-from aish.daemon import AishDaemon, RateLimiter, SessionBuffer, _ensure_leading_space, _strip_code_fences
+from aish.daemon import (
+    AishDaemon,
+    RateLimiter,
+    SessionBuffer,
+    _ensure_leading_space,
+    _strip_code_fences,
+)
 
 
 class TestEnsureLeadingSpace:
