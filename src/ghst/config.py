@@ -72,6 +72,7 @@ class UIConfig:
     nl_hotkey: str = "^G"
     history_search_hotkey: str = "^R"
     cheat_sheet_hotkey: str = "^_"
+    ghost_color: str = ""
     history_search_limit: int = 500
     error_correction: bool = True
     proactive_suggestions: bool = True
@@ -124,6 +125,7 @@ class GhstConfig:
             nl_hotkey=ui_raw.get("nl_hotkey", "^G"),
             history_search_hotkey=ui_raw.get("history_search_hotkey", "^R"),
             cheat_sheet_hotkey=ui_raw.get("cheat_sheet_hotkey", "^_"),
+            ghost_color=ui_raw.get("ghost_color", ""),
             history_search_limit=ui_raw.get("history_search_limit", 500),
             error_correction=ui_raw.get("error_correction", True),
             proactive_suggestions=ui_raw.get("proactive_suggestions", True),
@@ -149,6 +151,7 @@ class GhstConfig:
         "nl_hotkey": ("ui", "nl_hotkey"),
         "history_search_hotkey": ("ui", "history_search_hotkey"),
         "cheat_sheet_hotkey": ("ui", "cheat_sheet_hotkey"),
+        "ghost_color": ("ui", "ghost_color"),
         "history_search_limit": ("ui", "history_search_limit"),
         "error_correction": ("ui", "error_correction"),
         "proactive_suggestions": ("ui", "proactive_suggestions"),
@@ -226,6 +229,8 @@ class GhstConfig:
             lines.append(f'proactive_suggestions = {v}')
         if self.ui.proactive_output_lines != defaults.proactive_output_lines:
             lines.append(f'proactive_output_lines = {self.ui.proactive_output_lines}')
+        if self.ui.ghost_color:
+            lines.append(f'ghost_color = "{esc(self.ui.ghost_color)}"')
         if self.ui.history_search_limit != defaults.history_search_limit:
             lines.append(f'history_search_limit = {self.ui.history_search_limit}')
 

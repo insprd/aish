@@ -32,6 +32,30 @@ def _get_src_dir() -> str:
     return str(Path(__file__).resolve().parent)
 
 
+def _ghost_color_esc(value: str) -> str:
+    """Convert a ghost_color config value to a terminal escape sequence.
+
+    Accepts a 256-color index (e.g. "243") or hex RGB (e.g. "#767676").
+    Returns empty string for invalid/empty input (caller uses default).
+    """
+    value = value.strip()
+    if not value:
+        return ""
+    if value.startswith("#") and len(value) == 7:
+        try:
+            r, g, b = int(value[1:3], 16), int(value[3:5], 16), int(value[5:7], 16)
+            return f"\\e[38;2;{r};{g};{b}m"
+        except ValueError:
+            return ""
+    try:
+        n = int(value)
+        if 0 <= n <= 255:
+            return f"\\e[38;5;{n}m"
+    except ValueError:
+        pass
+    return ""
+
+
 def _shell_init_zsh(config: GhstConfig) -> None:
     """Output zsh integration code for eval."""
     src_dir = _get_src_dir()
@@ -40,11 +64,14 @@ def _shell_init_zsh(config: GhstConfig) -> None:
     # Find the bin directory containing the ghst entry point
     bin_dir = str(Path(sys.executable).resolve().parent)
 
+    ghost_esc = _ghost_color_esc(config.ui.ghost_color)
+    ghost_export = f'\nexport __GHST_GHOST_ESC=$\'{ghost_esc}\'' if ghost_esc else ""
+
     print(f'''# ghst — AI-powered shell plugin
 # Add to .zshrc: eval "$(ghst shell-init zsh)"
 
 export __GHST_SRC_DIR="{src_dir}"
-export __GHST_SOCKET="{socket_path}"
+export __GHST_SOCKET="{socket_path}"{ghost_export}
 
 # Ensure ghst CLI is on PATH
 [[ ":$PATH:" != *":{bin_dir}:"* ]] && export PATH="{bin_dir}:$PATH"
