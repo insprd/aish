@@ -214,22 +214,40 @@ def _cmd_init(args: argparse.Namespace) -> None:
     """Handle `aish init` — interactive setup wizard."""
     print("  aish — AI-powered shell plugin\n")
 
-    # Step 1: Detect shell
+    # Step 1: Detect shell and add integration
     shell = os.environ.get("SHELL", "").rsplit("/", 1)[-1] or "zsh"
     print(f"  Detected shell: {shell}")
     if shell != "zsh":
         print("  ⚠ Only zsh is supported currently. Proceeding with zsh.")
         shell = "zsh"
 
-    print(f'\n  Add this to your ~/.{shell}rc:\n')
-    print(f'    eval "$(aish shell-init {shell})"')
-    print(f'\n  Then restart your shell or run: exec {shell}\n')
+    init_line = f'eval "$(aish shell-init {shell})"'
+    rc_path = Path.home() / f".{shell}rc"
+    already_installed = False
+    if rc_path.exists():
+        rc_content = rc_path.read_text()
+        already_installed = "aish shell-init" in rc_content
+
+    if already_installed:
+        print(f"\n  ✓ Shell integration already in ~/{rc_path.name}")
+    else:
+        print(f"\n  Add shell integration to ~/{rc_path.name}? [Y/n] ", end="", flush=True)
+        add = input().strip()
+        if add.lower() != "n":
+            with open(rc_path, "a") as f:
+                f.write(f"\n# Added by aish\n{init_line}\n")
+            print(f"  ✓ Added to ~/{rc_path.name}")
+        else:
+            print(f'\n  Add this to your ~/{rc_path.name} manually:\n')
+            print(f"    {init_line}")
+            print(f"\n  Then restart your shell or run: exec {shell}\n")
 
     # Step 2: Configure provider
     print("  Choose your LLM provider:")
     print("    1) OpenAI (default)")
     print("    2) Anthropic")
-    choice = input("\n  > ").strip()
+    print("\n  > ", end="", flush=True)
+    choice = input().strip()
     provider = "anthropic" if choice == "2" else "openai"
 
     # API key
@@ -250,10 +268,10 @@ def _cmd_init(args: argparse.Namespace) -> None:
 
     # Models
     default_model, default_autocomplete = default_models[provider]
-    model = input(f"  Model for commands [{default_model}]: ").strip()
-    model = model or default_model
-    ac_model = input(f"  Model for autocomplete [{default_autocomplete}]: ").strip()
-    ac_model = ac_model or default_autocomplete
+    print(f"  Model for commands [{default_model}]: ", end="", flush=True)
+    model = input().strip() or default_model
+    print(f"  Model for autocomplete [{default_autocomplete}]: ", end="", flush=True)
+    ac_model = input().strip() or default_autocomplete
 
     # Write config
     config = AishConfig()
@@ -462,9 +480,11 @@ def _cmd_provider_set(args: argparse.Namespace) -> None:
         "anthropic": ("claude-sonnet-4-5", "claude-haiku-4-5"),
     }
     default_model, default_ac = defaults[name]
-    model = input(f"  Model for commands [{default_model}]: ").strip()
+    print(f"  Model for commands [{default_model}]: ", end="", flush=True)
+    model = input().strip()
     config.provider.model = model or default_model
-    ac_model = input(f"  Model for autocomplete [{default_ac}]: ").strip()
+    print(f"  Model for autocomplete [{default_ac}]: ", end="", flush=True)
+    ac_model = input().strip()
     config.provider.autocomplete_model = ac_model or default_ac
 
     config.write_toml()
