@@ -110,6 +110,19 @@ def _ensure_leading_space(buffer: str, suggestion: str) -> str:
     return suggestion
 
 
+def _relativize_path(buffer: str, suggestion: str, cwd: str) -> str:
+    """Convert absolute path suggestions to relative when the path exists in cwd."""
+    stripped = suggestion.lstrip()
+    if not stripped.startswith("/"):
+        return suggestion
+    # Check if the absolute path is just cwd + relative
+    abs_path = stripped.split()[0] if stripped.split() else stripped
+    if abs_path.startswith(cwd + "/"):
+        rel = abs_path[len(cwd) + 1:]
+        return suggestion.replace(abs_path, rel, 1)
+    return suggestion
+
+
 _FENCE_RE: re.Pattern[str] | None = None
 
 
@@ -232,6 +245,9 @@ class GhstDaemon:
             )
             # FIM post-process: ensure leading space for special chars
             suggestion = _ensure_leading_space(buffer, suggestion)
+            # Prefer relative paths: strip leading / when buffer ends with
+            # a path-expecting command and cwd would resolve it
+            suggestion = _relativize_path(buffer, suggestion, cwd)
 
         # Strip trailing whitespace but preserve leading
         suggestion = suggestion.rstrip()
