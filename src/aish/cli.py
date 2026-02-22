@@ -34,7 +34,7 @@ def _get_src_dir() -> str:
 def _shell_init_zsh(config: AishConfig) -> None:
     """Output zsh integration code for eval."""
     src_dir = _get_src_dir()
-    shell_dir = Path(__file__).resolve().parent.parent.parent / "shell" / "zsh"
+    shell_dir = Path(__file__).resolve().parent / "shell"
     socket_path = config.get_socket_path()
     # Find the bin directory containing the aish entry point
     bin_dir = str(Path(sys.executable).resolve().parent)

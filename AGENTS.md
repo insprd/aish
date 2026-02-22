@@ -34,10 +34,10 @@ src/aish/
   prompts.py     – system/user prompt templates for all request types
   context.py     – cwd/git/env context gathering & caching
   safety.py      – dangerous-command detection, history/output sanitization
-shell/
-  zsh/aish.zsh           – precmd/preexec hooks, history helper, auto-reload, cheat sheet
-  zsh/autocomplete.zsh   – ghost text via direct /dev/tty escape codes, zsocket IPC, adaptive debounce
-  zsh/nl-command.zsh     – Ctrl+G natural-language widget, Ctrl+R history search, Ctrl+Z undo
+  shell/
+    aish.zsh           – precmd/preexec hooks, history helper, auto-reload, cheat sheet
+    autocomplete.zsh   – ghost text via direct /dev/tty escape codes, zsocket IPC, adaptive debounce
+    nl-command.zsh     – Ctrl+G natural-language widget, Ctrl+R history search, Ctrl+Z undo
 tests/
   test_config.py, test_prompts.py, test_llm.py, test_daemon.py,
   test_safety.py, test_integration.py
