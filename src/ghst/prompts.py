@@ -31,7 +31,7 @@ RULES:
 - Output ONLY the characters that come after the provided text
 - This is pure text continuation, not instruction following
 - Include leading whitespace when the next token is a new argument
-- Prefer relative paths over absolute paths
+- Always use relative paths (never absolute like /Users/... or /home/...)
 - Do NOT repeat any part of the input
 - Do NOT explain, comment, or wrap in markdown
 - If no useful continuation exists, output nothing"""
@@ -58,10 +58,31 @@ def autocomplete_user(
     history: list[str],
     shell: str = "zsh",
     exit_status: int = 0,
+    dir_listing: str = "",
+    git_branch: str = "",
+    git_dirty: bool = False,
+    git_branches: list[str] | None = None,
+    project_types: list[str] | None = None,
+    active_env: str = "",
 ) -> str:
     hist_text = "\n".join(history[-5:]) if history else "(none)"
+
+    context_lines = [f"Context: {shell} shell in {cwd}"]
+    if dir_listing:
+        context_lines.append(f"Files here: {dir_listing}")
+    if git_branch:
+        status = " (dirty)" if git_dirty else ""
+        context_lines.append(f"Git: on {git_branch}{status}")
+        if git_branches:
+            context_lines.append(f"Branches: {', '.join(git_branches)}")
+    if project_types:
+        context_lines.append(f"Project: {', '.join(project_types)}")
+    if active_env:
+        context_lines.append(f"Env: {active_env}")
+
+    context_block = "\n".join(context_lines)
     return f"""\
-Context: {shell} shell in {cwd}
+{context_block}
 Recent commands:
 {hist_text}
 Last exit: {exit_status}
