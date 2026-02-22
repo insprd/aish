@@ -112,18 +112,39 @@ zsh (ZLE widgets)  ←── Unix domain socket ──→  ghstd (Python daemon)
 
 The shell side sends JSON requests over a Unix socket; the daemon routes them to the LLM and returns suggestions. The daemon runs in the background, auto-starts on first use, and auto-restarts when Python source files change (for seamless development).
 
+## Context Awareness
+
+Autocomplete suggestions are informed by your full working environment — not just what you've typed. Every request includes:
+
+| Context | Example | What it helps with |
+|---|---|---|
+| **Directory listing** | `src/  tests/  README.md` | `cd`, `cat`, `vim` suggest real file/folder names |
+| **Git branch & status** | `on main (dirty)` | `git commit`, `git push`, `git stash` awareness |
+| **Git branches** | `feature/auth, develop, next` | `git checkout`, `git merge` suggest real branch names |
+| **Project type** | `python, docker` | Suggests `uv run pytest` instead of `npm test` |
+| **Active environment** | `venv:.venv` | Knows `python` resolves to the venv, not system |
+| **Recent commands** | last 5 from history | Learns your patterns within the session |
+| **Exit status** | `0` or `1` | Knows if the last command failed |
+
+All context is gathered locally and cached (5s TTL) to avoid redundant work during rapid typing. Project type is detected from marker files in the current directory:
+
+`package.json` · `pyproject.toml` · `Cargo.toml` · `go.mod` · `Gemfile` · `Makefile` · `Dockerfile` · `docker-compose.yml` · `CMakeLists.txt` · `pom.xml` · `build.gradle` · `justfile` · `Taskfile.yml`
+
 ## Privacy
 
 ghst sends the following data to your configured LLM provider:
 
 - **Current buffer** (what you've typed so far)
-- **Current working directory**
+- **Current working directory** and **directory listing** (non-hidden files/folders)
 - **Recent shell history** (last 5-10 commands)
+- **Git context** — current branch, dirty status, local branch names
+- **Project type** — detected from marker files (e.g. `package.json`, `pyproject.toml`, `Cargo.toml`)
+- **Active environment** — virtualenv name, conda env, `NODE_ENV`
 
 ghst does **NOT** send:
 
 - File contents (unless they appear in terminal output)
-- Environment variables or full PATH
+- Hidden/dotfiles or environment variables
 - SSH keys, passwords, or other credentials
 
 All sensitive data (API keys, passwords, tokens) is automatically stripped from history and terminal output before sending to the LLM.

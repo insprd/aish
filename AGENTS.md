@@ -32,7 +32,7 @@ src/ghst/
   daemon.py      – asyncio socket server, request routing, session buffer, rate limiting, idle timeout
   llm.py         – async LLM client (OpenAI + Anthropic), circuit breaker, caching, prompt caching
   prompts.py     – system/user prompt templates for all request types
-  context.py     – cwd/git/env context gathering & caching
+  context.py     – cwd/git/env/project-type context gathering & caching
   safety.py      – dangerous-command detection, history/output sanitization
   shell/
     ghst.zsh           – precmd/preexec hooks, history helper, auto-reload, cheat sheet
@@ -96,6 +96,8 @@ uv run ghst status            # check daemon status
 - **Idle timeout** — daemon auto-exits after 30 minutes of inactivity
 - **Rate limiting** — 60 requests/minute to prevent burning API quota
 - **Safety** — dangerous command warnings, secret sanitization before LLM calls
+- **FIM-style autocomplete prompt** — system prompt tells the model to "continue the text from where it left off" (like Tab completion). This avoids spacing/restructuring issues that instruction-following prompts cause.
+- **Rich autocomplete context** — every autocomplete request includes cwd, directory listing, git branch/status/branches, project type (from marker files), active virtualenv/conda, and recent history. The model sees the real environment instead of relying on post-processing hacks.
 - **Completion spacing** — `_ensure_leading_space()` in `daemon.py` adds spaces before `-|>&;<()` tokens
 - **Code fence stripping** — `_strip_code_fences()` regex removes markdown wrapping from LLM responses
 - **Prompt caching** — Anthropic `cache_control: ephemeral` on system prompt + beta header

@@ -363,11 +363,15 @@ __ghst_self_insert (ZLE widget, bound to all printable chars via range binding)
         ▼
   Daemon receives request
   ├── Checks cache: (buffer, cwd) → cache hit? Return immediately
+  ├── Gathers environment context (cached 5s):
+  │   ├── Directory listing (non-hidden files/dirs in cwd)
+  │   ├── Git: current branch, dirty status, local branch names
+  │   ├── Project type: detected from marker files (package.json, pyproject.toml, etc.)
+  │   └── Active env: virtualenv, conda, NODE_ENV
   ├── Cache miss → call LLM API (autocomplete_model, non-streaming)
-  │   ├── Prompt: system prompt + buffer + cwd + history + exit_status
-  │   └── Instruction: "Return ONLY the completion suffix — the exact text
-  │       to append directly after what they typed. Include a leading space
-  │       if one is needed."
+  │   ├── System prompt: FIM-style "continue the text from where it left off"
+  │   └── User prompt: buffer + cwd + dir listing + git context + project type +
+  │       active env + recent history + exit status
   ├── Post-processing:
   │   ├── _ensure_leading_space() — adds space before -|>&;<() if needed
   │   ├── _strip_code_fences() — regex to unwrap ```...``` blocks
