@@ -161,17 +161,16 @@ __ghst_nl_command() {
 
     # Build request
     local history_json
-    history_json=$(python3 -c "
-import json
-history = '''$(__ghst_get_history)'''.strip().split('\n')
-history = [h for h in history if h]
+    history_json=$(__ghst_get_history | python3 -c "
+import json, sys
+history = [l.strip() for l in sys.stdin if l.strip()]
 print(json.dumps(history[-10:]))
 " 2>/dev/null)
     [[ -z "$history_json" ]] && history_json='[]'
 
     local escaped_prompt escaped_buffer
-    escaped_prompt=$(python3 -c "import json; print(json.dumps('''$nl_input'''))" 2>/dev/null)
-    escaped_buffer=$(python3 -c "import json; print(json.dumps('$saved_buffer'))" 2>/dev/null)
+    escaped_prompt=$(printf '%s' "$nl_input" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null)
+    escaped_buffer=$(printf '%s' "$saved_buffer" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null)
 
     local json_request="{\"type\":\"nl\",\"prompt\":$escaped_prompt,\"buffer\":$escaped_buffer,\"cwd\":\"$PWD\",\"shell\":\"zsh\",\"history\":$history_json}"
 
@@ -281,12 +280,11 @@ __ghst_history_search() {
 
     # Get history entries (deduplicated)
     local history_json
-    history_json=$(python3 -c "
-import json
+    history_json=$(__ghst_get_history | python3 -c "
+import json, sys
 history = []
 seen = set()
-lines = '''$(__ghst_get_history)'''.strip().split('\n')
-for l in lines:
+for l in sys.stdin:
     l = l.strip()
     if l and l not in seen:
         seen.add(l)
