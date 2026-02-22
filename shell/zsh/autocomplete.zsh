@@ -1,38 +1,53 @@
 # autocomplete.zsh — Ghost text autocomplete via ZLE
 #
 # Displays LLM suggestions as dimmed text after the cursor.
+# Uses BUFFER + region_highlight (like zsh-autosuggestions).
 # Accept with Tab/→, dismiss with Esc or any other key.
 
 # ── State ────────────────────────────────────────────────────────────────────
 typeset -g __AISH_SUGGESTION=""
+typeset -g __AISH_BUFFER_LEN=0        # real buffer length (before ghost text)
 typeset -g __AISH_REQUEST_ID=""
 typeset -g __AISH_PENDING_FD=""
-typeset -g __AISH_PROACTIVE_PENDING=0
 
 # ── Configuration ────────────────────────────────────────────────────────────
 typeset -g __AISH_DELAY=${__AISH_DELAY:-200}
 typeset -g __AISH_DELAY_SHORT=${__AISH_DELAY_SHORT:-100}
 typeset -g __AISH_DELAY_THRESHOLD=${__AISH_DELAY_THRESHOLD:-8}
 typeset -g __AISH_MIN_CHARS=${__AISH_MIN_CHARS:-3}
+typeset -g __AISH_HIGHLIGHT="fg=8"
 
-# ── Clear ghost text ─────────────────────────────────────────────────────────
+# ── Remove ghost text from buffer ────────────────────────────────────────────
 __aish_clear_ghost() {
     if [[ -n "$__AISH_SUGGESTION" ]]; then
+        # Remove the appended ghost text from BUFFER
+        BUFFER="${BUFFER[1,$__AISH_BUFFER_LEN]}"
+        CURSOR=$__AISH_BUFFER_LEN
         __AISH_SUGGESTION=""
-        POSTDISPLAY=""
-        region_highlight=("${(@)region_highlight:#P*}")
+        region_highlight=("${(@)region_highlight:#*fg=8*}")
         zle -R
     fi
 }
 
-# ── Draw ghost text ──────────────────────────────────────────────────────────
+# ── Append ghost text to buffer ──────────────────────────────────────────────
 __aish_draw_ghost() {
     local suggestion="$1"
     if [[ -n "$suggestion" ]]; then
+        # Remove any existing ghost text first
+        if [[ -n "$__AISH_SUGGESTION" ]]; then
+            BUFFER="${BUFFER[1,$__AISH_BUFFER_LEN]}"
+            region_highlight=("${(@)region_highlight:#*fg=8*}")
+        fi
         __AISH_SUGGESTION="$suggestion"
-        POSTDISPLAY="$suggestion"
-        region_highlight=("${(@)region_highlight:#P*}")
-        region_highlight+=("P0 ${#suggestion} fg=242")
+        __AISH_BUFFER_LEN=${#BUFFER}
+        # Append suggestion to buffer
+        BUFFER="${BUFFER}${suggestion}"
+        # Highlight the ghost portion as dim
+        local start=$__AISH_BUFFER_LEN
+        local end=${#BUFFER}
+        region_highlight+=("$start $end $__AISH_HIGHLIGHT")
+        # Keep cursor at the real end
+        CURSOR=$__AISH_BUFFER_LEN
         zle -R
     fi
 }
@@ -42,57 +57,46 @@ __aish_gen_request_id() {
     __AISH_REQUEST_ID="req-$$-$RANDOM"
 }
 
-# ── Get history for context ─────────────────────────────────────────────────
-__aish_get_history() {
-    fc -l -5 2>/dev/null | sed 's/^[[:space:]]*[0-9]*[[:space:]]*//' || true
-}
-
 # ── Callback for async response ─────────────────────────────────────────────
 __aish_autocomplete_callback() {
     local fd=$1
     local response
 
-    # Read the response
-    zle -F $fd  # Unregister handler
+    zle -F $fd
     read -r response <&$fd
-    exec {fd}<&-  # Close fd
+    exec {fd}<&-
 
-    # Parse response (pure shell — no subshell to avoid breaking zle -R)
     if [[ -z "$response" ]]; then
         return
     fi
 
-    # Extract request_id
+    # Extract request_id (pure shell)
     local resp_id=""
     if [[ "$response" == *'"request_id"'* ]]; then
         resp_id="${response#*\"request_id\": \"}"
         resp_id="${resp_id%%\"*}"
     fi
 
-    # Check if this response is still current
     if [[ "$resp_id" != "$__AISH_REQUEST_ID" ]]; then
         return
     fi
 
-    # Extract suggestion
+    # Extract suggestion (pure shell)
     local suggestion=""
     if [[ "$response" == *'"suggestion": "'* ]]; then
         suggestion="${response#*\"suggestion\": \"}"
         suggestion="${suggestion%%\"*}"
-        # Unescape basic JSON escapes
         suggestion="${suggestion//\\n/$'\n'}"
         suggestion="${suggestion//\\\\/\\}"
     fi
 
-    # Draw ghost text
     if [[ -n "$suggestion" ]]; then
         __aish_draw_ghost "$suggestion"
     fi
 }
 
-# ── Send autocomplete request (async with built-in delay) ────────────────────
+# ── Send autocomplete request ────────────────────────────────────────────────
 __aish_send_autocomplete() {
-    # Don't send if socket doesn't exist
     [[ -S "$__AISH_SOCKET" ]] || return
 
     # Cancel any pending request
@@ -109,31 +113,18 @@ __aish_send_autocomplete() {
     local cwd="$PWD"
     local exit_st="$__AISH_LAST_EXIT"
 
-    # Adaptive delay (ms)
     local delay=$__AISH_DELAY
     if [[ ${#buf} -ge $__AISH_DELAY_THRESHOLD ]]; then
         delay=$__AISH_DELAY_SHORT
     fi
 
-    # Single background process: delay → build JSON → send to daemon → return response
     exec {__AISH_PENDING_FD}< <(
-        # Debounce delay
         sleep $(( delay / 1000.0 ))
-        # Build JSON, send to daemon, return response
         python3 -c "
 import socket, sys, json
 buf, cursor, req_id, cwd, exit_st = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], int(sys.argv[5])
-last_cmd = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else None
-last_output = sys.argv[7] if len(sys.argv) > 7 and sys.argv[7] else None
-sock_path = sys.argv[8]
-history = []
-try:
-    import subprocess
-    h = subprocess.run(['fc', '-l', '-5'], capture_output=True, text=True, shell=False)
-except: pass
-req = {'type':'complete','request_id':req_id,'buffer':buf,'cursor_pos':cursor,'cwd':cwd,'shell':'zsh','history':history,'exit_status':exit_st}
-if last_cmd: req['last_command'] = last_cmd
-if last_output: req['last_output'] = last_output
+sock_path = sys.argv[6]
+req = {'type':'complete','request_id':req_id,'buffer':buf,'cursor_pos':cursor,'cwd':cwd,'shell':'zsh','history':[],'exit_status':exit_st}
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 try:
     s.settimeout(10)
@@ -149,52 +140,47 @@ try:
     sys.stdout.buffer.flush()
 except: pass
 finally: s.close()
-" "$buf" "$cur" "$req_id" "$cwd" "$exit_st" \
-  "${__AISH_LAST_CMD:-}" "${__AISH_CAPTURED_OUTPUT:-}" "$__AISH_SOCKET" 2>/dev/null
+" "$buf" "$cur" "$req_id" "$cwd" "$exit_st" "$__AISH_SOCKET" 2>/dev/null
     )
     zle -F $__AISH_PENDING_FD __aish_autocomplete_callback
 }
 
-# ── Prefix reuse ─────────────────────────────────────────────────────────────
-__aish_try_prefix_reuse() {
-    # If we have an existing suggestion and the user typed a char that matches,
-    # trim the suggestion instead of making a new API call
-    if [[ -n "$__AISH_SUGGESTION" && -n "$BUFFER" ]]; then
-        local prev_buffer="${BUFFER%?}"  # Buffer before this keystroke
-        local new_char="${BUFFER: -1}"
-        local expected="${__AISH_SUGGESTION:0:1}"
-
-        if [[ "$new_char" == "$expected" ]]; then
-            __AISH_SUGGESTION="${__AISH_SUGGESTION:1}"
-            if [[ -n "$__AISH_SUGGESTION" ]]; then
-                __aish_draw_ghost "$__AISH_SUGGESTION"
-            else
-                __aish_clear_ghost
-            fi
-            return 0  # Reused
-        fi
-    fi
-    return 1  # No reuse possible
-}
-
 # ── Custom self-insert widget ────────────────────────────────────────────────
 __aish_self_insert() {
-    zle .self-insert
-
-    # Try prefix reuse first
-    if __aish_try_prefix_reuse; then
-        return
+    # Clear ghost text before inserting (so .self-insert works on clean buffer)
+    if [[ -n "$__AISH_SUGGESTION" ]]; then
+        # Check prefix reuse: does the new char match the start of suggestion?
+        local key="$KEYS"
+        if [[ -n "$key" && "${__AISH_SUGGESTION[1]}" == "$key" ]]; then
+            # Consume one char from suggestion
+            __AISH_SUGGESTION="${__AISH_SUGGESTION:1}"
+            # Remove ghost, insert char normally, redraw ghost
+            BUFFER="${BUFFER[1,$__AISH_BUFFER_LEN]}"
+            region_highlight=("${(@)region_highlight:#*fg=8*}")
+            zle .self-insert
+            __AISH_BUFFER_LEN=${#BUFFER}
+            if [[ -n "$__AISH_SUGGESTION" ]]; then
+                BUFFER="${BUFFER}${__AISH_SUGGESTION}"
+                local start=$__AISH_BUFFER_LEN
+                local end=${#BUFFER}
+                region_highlight+=("$start $end $__AISH_HIGHLIGHT")
+                CURSOR=$__AISH_BUFFER_LEN
+            fi
+            zle -R
+            return
+        fi
+        # No prefix match — clear ghost
+        BUFFER="${BUFFER[1,$__AISH_BUFFER_LEN]}"
+        __AISH_SUGGESTION=""
+        region_highlight=("${(@)region_highlight:#*fg=8*}")
     fi
 
-    # Clear existing ghost text
-    __aish_clear_ghost
+    zle .self-insert
+    __AISH_BUFFER_LEN=${#BUFFER}
 
-    # Check minimum chars
     if [[ ${#BUFFER} -lt $__AISH_MIN_CHARS ]]; then
         return
     fi
-
-    # Send async request (includes debounce delay)
     __aish_send_autocomplete
 }
 zle -N self-insert __aish_self_insert
@@ -202,11 +188,13 @@ zle -N self-insert __aish_self_insert
 # ── Accept full suggestion (Tab) ─────────────────────────────────────────────
 __aish_accept_suggestion() {
     if [[ -n "$__AISH_SUGGESTION" ]]; then
-        BUFFER="${BUFFER}${__AISH_SUGGESTION}"
+        # Ghost text is already in BUFFER — just move cursor to end and clear highlight
         CURSOR=${#BUFFER}
-        __aish_clear_ghost
+        __AISH_BUFFER_LEN=${#BUFFER}
+        __AISH_SUGGESTION=""
+        region_highlight=("${(@)region_highlight:#*fg=8*}")
+        zle -R
     else
-        # Fall through to normal Tab completion
         zle expand-or-complete
     fi
 }
@@ -214,20 +202,24 @@ zle -N __aish_accept_suggestion
 
 # ── Accept one word (→ at end of line) ───────────────────────────────────────
 __aish_forward_char() {
-    if [[ -n "$__AISH_SUGGESTION" && $CURSOR -eq ${#BUFFER} ]]; then
-        # Accept first word from suggestion
+    if [[ -n "$__AISH_SUGGESTION" && $CURSOR -eq $__AISH_BUFFER_LEN ]]; then
         local word="${__AISH_SUGGESTION%% *}"
         if [[ "$word" == "$__AISH_SUGGESTION" ]]; then
-            # No space — accept all
-            BUFFER="${BUFFER}${__AISH_SUGGESTION}"
+            # Accept all
             CURSOR=${#BUFFER}
-            __aish_clear_ghost
+            __AISH_BUFFER_LEN=${#BUFFER}
+            __AISH_SUGGESTION=""
+            region_highlight=("${(@)region_highlight:#*fg=8*}")
         else
-            BUFFER="${BUFFER}${word} "
-            CURSOR=${#BUFFER}
+            # Accept one word
+            __AISH_BUFFER_LEN=$(( __AISH_BUFFER_LEN + ${#word} + 1 ))
+            CURSOR=$__AISH_BUFFER_LEN
             __AISH_SUGGESTION="${__AISH_SUGGESTION#$word }"
-            __aish_draw_ghost "$__AISH_SUGGESTION"
+            # Update highlight
+            region_highlight=("${(@)region_highlight:#*fg=8*}")
+            region_highlight+=("$__AISH_BUFFER_LEN ${#BUFFER} $__AISH_HIGHLIGHT")
         fi
+        zle -R
     else
         zle .forward-char
     fi
@@ -243,7 +235,7 @@ __aish_dismiss() {
 __aish_backward_delete_char() {
     __aish_clear_ghost
     zle .backward-delete-char
-    # Restart request if buffer still has content
+    __AISH_BUFFER_LEN=${#BUFFER}
     if [[ ${#BUFFER} -ge $__AISH_MIN_CHARS ]]; then
         __aish_send_autocomplete
     fi
@@ -257,42 +249,7 @@ __aish_accept_line() {
 }
 zle -N accept-line __aish_accept_line
 
-# ── Debug: synchronous test (Ctrl+T) ────────────────────────────────────────
-__aish_debug_test() {
-    [[ -S "$__AISH_SOCKET" ]] || { zle -M "aish debug: socket not found at $__AISH_SOCKET"; return; }
-
-    local json_request
-    json_request=$(python3 -c "
-import json, sys
-print(json.dumps({'type':'complete','request_id':'debug','buffer':sys.argv[1],'cursor_pos':int(sys.argv[2]),'cwd':sys.argv[3],'shell':'zsh','history':[],'exit_status':0}))
-" "$BUFFER" "$CURSOR" "$PWD" 2>&1)
-
-    if [[ -z "$json_request" ]]; then
-        zle -M "aish debug: failed to build JSON"
-        return
-    fi
-
-    zle -M "aish debug: sending request..."
-    local response
-    response=$(__aish_request "$json_request")
-    zle -M "aish debug: response=$response"
-
-    if [[ -n "$response" ]]; then
-        local suggestion
-        suggestion=$(python3 -c "
-import json, sys
-d = json.loads(sys.argv[1])
-print(d.get('suggestion', ''))
-" "$response" 2>/dev/null)
-        if [[ -n "$suggestion" ]]; then
-            __aish_draw_ghost "$suggestion"
-        fi
-    fi
-}
-zle -N __aish_debug_test
-bindkey '^T' __aish_debug_test
-
 # ── Keybindings ──────────────────────────────────────────────────────────────
 bindkey '^I' __aish_accept_suggestion    # Tab
-bindkey '\e[C' forward-char              # Right arrow (uses our override)
-bindkey '\e' __aish_dismiss              # Esc — only when ghost text visible
+bindkey '\e[C' forward-char              # Right arrow
+bindkey '\e' __aish_dismiss              # Esc
