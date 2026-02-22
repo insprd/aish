@@ -138,6 +138,7 @@ class GhstDaemon:
         self._server: asyncio.AbstractServer | None = None
         self._last_activity: float = 0.0
         self._rate_limiter = RateLimiter()
+        self._inflight_complete: asyncio.Task[dict[str, Any]] | None = None
 
     async def handle_request(self, data: dict[str, Any]) -> dict[str, Any]:
         """Route a request to the appropriate handler."""
@@ -145,7 +146,23 @@ class GhstDaemon:
         req_type = data.get("type", "")
         try:
             if req_type == "complete":
-                return await self._handle_complete(data)
+                # Cancel stale in-flight autocomplete to free up resources
+                if self._inflight_complete and not self._inflight_complete.done():
+                    self._inflight_complete.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await self._inflight_complete
+                self._inflight_complete = asyncio.create_task(
+                    self._handle_complete(data)
+                )
+                try:
+                    return await self._inflight_complete
+                except asyncio.CancelledError:
+                    logger.debug("Autocomplete cancelled by newer request")
+                    return {
+                        "type": "complete",
+                        "request_id": data.get("request_id", ""),
+                        "suggestion": "",
+                    }
             elif req_type == "nl":
                 return await self._handle_nl(data)
             elif req_type == "error_correct":
