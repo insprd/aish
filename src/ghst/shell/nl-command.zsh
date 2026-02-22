@@ -226,8 +226,6 @@ except: pass
         __ghst_show_status "${__GHST_C_WARNING}⚠ ${warning}${__GHST_C_RESET}"
     fi
     __ghst_show_status "${__GHST_C_SUCCESS}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
-
-    zle reset-prompt
 }
 zle -N __ghst_nl_command
 
