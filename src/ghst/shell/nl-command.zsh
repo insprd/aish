@@ -7,6 +7,44 @@
 typeset -g __GHST_SAVED_BUFFER=""
 typeset -gi __GHST_SAVED_CURSOR=0
 
+# ── Colors ──────────────────────────────────────────────────────────────────
+typeset -g __GHST_C_CYAN=$'\e[36m'
+typeset -g __GHST_C_DIM=$'\e[2m'
+typeset -g __GHST_C_GREEN=$'\e[32m'
+typeset -g __GHST_C_YELLOW=$'\e[33m'
+typeset -g __GHST_C_RED=$'\e[31m'
+typeset -g __GHST_C_RESET=$'\e[0m'
+
+# ── Spinner ─────────────────────────────────────────────────────────────────
+typeset -g __GHST_SPINNER_PID=0
+
+__ghst_start_spinner() {
+    local label="${1:-thinking}"
+    (
+        trap 'printf "\r\e[2K" > /dev/tty; exit 0' TERM INT
+        local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+        local i=0
+        while true; do
+            printf '\r  %s %s %s%s%s' \
+                "${__GHST_C_CYAN}" "${frames[$((i % 10 + 1))]}" \
+                "${__GHST_C_DIM}${label}...${__GHST_C_RESET}" \
+                "" "" > /dev/tty
+            sleep 0.08
+            (( i++ ))
+        done
+    ) &!
+    __GHST_SPINNER_PID=$!
+}
+
+__ghst_stop_spinner() {
+    if (( __GHST_SPINNER_PID > 0 )); then
+        kill $__GHST_SPINNER_PID 2>/dev/null
+        wait $__GHST_SPINNER_PID 2>/dev/null
+        __GHST_SPINNER_PID=0
+        printf '\r\e[2K' > /dev/tty
+    fi
+}
+
 # ── NL Command Widget ───────────────────────────────────────────────────────
 __ghst_nl_command() {
     # Save current buffer for undo
@@ -21,12 +59,12 @@ __ghst_nl_command() {
     if [[ -n "$BUFFER" ]]; then
         local short_buffer="${BUFFER:0:40}"
         [[ ${#BUFFER} -gt 40 ]] && short_buffer="${short_buffer}..."
-        context_hint="($short_buffer) "
+        context_hint="${__GHST_C_DIM}($short_buffer)${__GHST_C_RESET} "
     fi
 
     # Use recursive-edit for full line editing (arrow keys, Ctrl+A/E, etc.)
     local orig_prompt="$PROMPT"
-    PROMPT="ghst> ${context_hint}"
+    PROMPT="${__GHST_C_CYAN}ghst>${__GHST_C_RESET} ${context_hint}"
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
@@ -45,10 +83,11 @@ __ghst_nl_command() {
         return
     fi
 
-    # Show spinner
+    # Show animated spinner
     BUFFER=""
-    POSTDISPLAY=$'\n  ⠋ thinking...'
+    POSTDISPLAY=""
     zle reset-prompt
+    __ghst_start_spinner "thinking"
 
     # Build request
     local history_json
@@ -70,13 +109,13 @@ print(json.dumps(history[-10:]))
     local response
     response=$(__ghst_request "$json_request")
 
-    # Clear spinner
-    POSTDISPLAY=""
+    # Stop spinner
+    __ghst_stop_spinner
 
     if [[ -z "$response" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n  ghst: couldn'\''t reach daemon — run '\''ghst start'\'''
+        POSTDISPLAY=$'\n'"  ${__GHST_C_RED}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon — run 'ghst start'${__GHST_C_RESET}"
         zle reset-prompt
         return
     fi
@@ -102,7 +141,7 @@ except: pass
     if [[ -z "$command" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n  ghst: couldn'\''t generate a command'
+        POSTDISPLAY=$'\n'"  ${__GHST_C_YELLOW}⚠${__GHST_C_RESET} ${__GHST_C_DIM}couldn't generate a command${__GHST_C_RESET}"
         zle reset-prompt
         return
     fi
@@ -115,9 +154,12 @@ except: pass
     BUFFER="$command"
     CURSOR=${#BUFFER}
 
-    # Show warning if present
+    # Show success hint (with warning if present)
+    local hint="${__GHST_C_GREEN}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
     if [[ -n "$warning" ]]; then
-        POSTDISPLAY=$'\n'"${warning}"
+        POSTDISPLAY=$'\n'"  ${__GHST_C_YELLOW}⚠ ${warning}${__GHST_C_RESET}"$'\n'"  ${hint}"
+    else
+        POSTDISPLAY=$'\n'"  ${hint}"
     fi
 
     zle reset-prompt
@@ -134,7 +176,7 @@ __ghst_history_search() {
 
     # Use recursive-edit for search query input
     local orig_prompt="$PROMPT"
-    PROMPT="ghst history> "
+    PROMPT="${__GHST_C_CYAN}ghst history>${__GHST_C_RESET} "
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
@@ -152,10 +194,11 @@ __ghst_history_search() {
         return
     fi
 
-    # Show spinner
+    # Show animated spinner
     BUFFER=""
-    POSTDISPLAY=$'\n  ⠋ searching...'
+    POSTDISPLAY=""
     zle reset-prompt
+    __ghst_start_spinner "searching"
 
     # Get history entries (deduplicated)
     local history_json
@@ -181,12 +224,13 @@ print(json.dumps(history[-500:]))
     local response
     response=$(__ghst_request "$json_request")
 
-    POSTDISPLAY=""
+    # Stop spinner
+    __ghst_stop_spinner
 
     if [[ -z "$response" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n  ghst: couldn'\''t reach daemon'
+        POSTDISPLAY=$'\n'"  ${__GHST_C_RED}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon${__GHST_C_RESET}"
         zle reset-prompt
         return
     fi
@@ -209,10 +253,11 @@ except: pass
         __GHST_SAVED_CURSOR=$saved_cursor
         BUFFER="$first_cmd"
         CURSOR=${#BUFFER}
+        POSTDISPLAY=$'\n'"  ${__GHST_C_GREEN}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
     else
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n  ghst: no matching history found'
+        POSTDISPLAY=$'\n'"  ${__GHST_C_YELLOW}⚠${__GHST_C_RESET} ${__GHST_C_DIM}no matching history found${__GHST_C_RESET}"
     fi
 
     zle reset-prompt
