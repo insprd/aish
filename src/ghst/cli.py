@@ -225,12 +225,32 @@ def _cmd_init(args: argparse.Namespace) -> None:
     ghst_bin = shutil.which("ghst") or str(Path(sys.executable).resolve().parent / "ghst")
     init_line = f'eval "$({ghst_bin} shell-init {shell})"'
     rc_path = Path.home() / f".{shell}rc"
-    already_installed = False
+    needs_install = True
+    needs_update = False
+    rc_content = ""
     if rc_path.exists():
         rc_content = rc_path.read_text()
-        already_installed = "ghst shell-init" in rc_content
+        if init_line in rc_content:
+            # Exact line already present — nothing to do
+            needs_install = False
+        elif "ghst shell-init" in rc_content or "shai shell-init" in rc_content \
+                or "aish shell-init" in rc_content:
+            # Stale eval line from old path or project name — replace it
+            needs_install = False
+            needs_update = True
 
-    if already_installed:
+    if needs_update:
+        # Replace the stale eval line with the correct one
+        lines = rc_content.splitlines(keepends=True)
+        new_lines = []
+        for line in lines:
+            if "shell-init" in line and ("ghst" in line or "shai" in line or "aish" in line):
+                new_lines.append(f"{init_line}\n")
+            else:
+                new_lines.append(line)
+        rc_path.write_text("".join(new_lines))
+        print(f"\n  ✓ Updated shell integration path in ~/{rc_path.name}")
+    elif not needs_install:
         print(f"\n  ✓ Shell integration already in ~/{rc_path.name}")
     else:
         print(f"\n  Add shell integration to ~/{rc_path.name}? [Y/n] ", end="", flush=True)
