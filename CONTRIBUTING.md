@@ -5,7 +5,7 @@ Thanks for your interest in contributing! Here's how to get started.
 ## Development Setup
 
 ```bash
-git clone https://github.com/your-org/aish.git
+git clone https://github.com/insprd/aish.git
 cd aish
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
