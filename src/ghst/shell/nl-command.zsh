@@ -79,6 +79,7 @@ __ghst_enter_mode() {
     __GHST_SAVED_RPS1="${RPS1:-}"
     RPS1="%{${__GHST_C_DIM}%}${rps1_label}%{${__GHST_C_RESET}%}"
     printf '\e[6 q' > /dev/tty
+    __GHST_AUTOCOMPLETE_DISABLED=1
     # Bind ESC to cancel; set short KEYTIMEOUT so arrow keys still work
     __GHST_SAVED_ESC_BINDING=$(bindkey -L '\e' 2>/dev/null)
     __GHST_SAVED_KEYTIMEOUT=${KEYTIMEOUT:-40}
@@ -89,6 +90,7 @@ __ghst_enter_mode() {
 __ghst_exit_mode() {
     RPS1="$__GHST_SAVED_RPS1"
     printf '\e[1 q' > /dev/tty
+    __GHST_AUTOCOMPLETE_DISABLED=0
     KEYTIMEOUT=$__GHST_SAVED_KEYTIMEOUT
     if [[ -n "$__GHST_SAVED_ESC_BINDING" ]]; then
         eval "$__GHST_SAVED_ESC_BINDING"

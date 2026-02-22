@@ -375,7 +375,7 @@ class GhstDaemon:
                 try:
                     data = json.loads(line.decode())
                 except json.JSONDecodeError:
-                    logger.warning("Invalid JSON received")
+                    logger.warning("Invalid JSON received: %r", line[:200])
                     continue
 
                 response = await self.handle_request(data)

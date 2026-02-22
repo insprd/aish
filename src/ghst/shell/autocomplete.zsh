@@ -9,6 +9,7 @@ typeset -g __GHST_PENDING_BUFFER=""
 typeset -gi __GHST_PENDING_CURSOR=0
 typeset -gi __GHST_GHOST_VISIBLE=0
 typeset -g __GHST_RESPONSE_FD=""
+typeset -gi __GHST_AUTOCOMPLETE_DISABLED=0
 
 # ── Configuration ────────────────────────────────────────────────────────────
 typeset -gi __GHST_DELAY=${__GHST_DELAY:-100}
@@ -134,6 +135,9 @@ __ghst_on_response() {
 # ── Debounce ─────────────────────────────────────────────────────────────────
 __ghst_schedule_complete() {
     __ghst_cancel_debounce
+
+    # Skip autocomplete when in NL/history mode
+    (( __GHST_AUTOCOMPLETE_DISABLED )) && return
 
     local buffer="$BUFFER"
     local cursor_pos="$CURSOR"
