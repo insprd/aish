@@ -6,7 +6,8 @@
 
 # ── State ────────────────────────────────────────────────────────────────────
 typeset -g __AISH_SUGGESTION=""
-typeset -g __AISH_BUFFER_LEN=0        # real buffer length (before ghost text)
+typeset -g __AISH_BUFFER_LEN=0
+typeset -g __AISH_SAVED_BUFFER=""     # buffer snapshot for callback restoration
 typeset -g __AISH_REQUEST_ID=""
 typeset -g __AISH_PENDING_FD=""
 
@@ -91,6 +92,12 @@ __aish_autocomplete_callback() {
     fi
 
     if [[ -n "$suggestion" ]]; then
+        # Restore BUFFER if ZLE lost it (known zsh issue in zle -F callbacks)
+        if [[ -z "$BUFFER" && -n "$__AISH_SAVED_BUFFER" ]]; then
+            BUFFER="$__AISH_SAVED_BUFFER"
+            CURSOR=${#BUFFER}
+            __AISH_BUFFER_LEN=${#BUFFER}
+        fi
         __aish_draw_ghost "$suggestion"
     fi
 }
@@ -105,6 +112,9 @@ __aish_send_autocomplete() {
         exec {__AISH_PENDING_FD}<&- 2>/dev/null
         __AISH_PENDING_FD=""
     fi
+
+    # Save buffer for restoration in callback
+    __AISH_SAVED_BUFFER="$BUFFER"
 
     __aish_gen_request_id
     local req_id="$__AISH_REQUEST_ID"
@@ -252,4 +262,3 @@ zle -N accept-line __aish_accept_line
 # ── Keybindings ──────────────────────────────────────────────────────────────
 bindkey '^I' __aish_accept_suggestion    # Tab
 bindkey '\e[C' forward-char              # Right arrow
-bindkey '\e' __aish_dismiss              # Esc
