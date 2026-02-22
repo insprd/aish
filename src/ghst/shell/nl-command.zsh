@@ -8,12 +8,16 @@ typeset -g __GHST_SAVED_BUFFER=""
 typeset -gi __GHST_SAVED_CURSOR=0
 
 # ── Colors (configurable via config.toml, fallback to ANSI defaults) ────────
-typeset -g __GHST_C_ACCENT="${__GHST_ACCENT_ESC:-$'\e[36m'}"
-typeset -g __GHST_C_SUCCESS="${__GHST_SUCCESS_ESC:-$'\e[32m'}"
-typeset -g __GHST_C_WARNING="${__GHST_WARNING_ESC:-$'\e[33m'}"
-typeset -g __GHST_C_ERROR="${__GHST_ERROR_ESC:-$'\e[31m'}"
+typeset -g __GHST_C_ACCENT=$'\e[36m'
+typeset -g __GHST_C_SUCCESS=$'\e[32m'
+typeset -g __GHST_C_WARNING=$'\e[33m'
+typeset -g __GHST_C_ERROR=$'\e[31m'
 typeset -g __GHST_C_DIM=$'\e[2m'
 typeset -g __GHST_C_RESET=$'\e[0m'
+[[ -n "$__GHST_ACCENT_ESC" ]]  && __GHST_C_ACCENT="$__GHST_ACCENT_ESC"
+[[ -n "$__GHST_SUCCESS_ESC" ]] && __GHST_C_SUCCESS="$__GHST_SUCCESS_ESC"
+[[ -n "$__GHST_WARNING_ESC" ]] && __GHST_C_WARNING="$__GHST_WARNING_ESC"
+[[ -n "$__GHST_ERROR_ESC" ]]   && __GHST_C_ERROR="$__GHST_ERROR_ESC"
 
 # ── Spinner ─────────────────────────────────────────────────────────────────
 typeset -g __GHST_SPINNER_PID=0
@@ -64,7 +68,7 @@ __ghst_nl_command() {
 
     # Use recursive-edit for full line editing (arrow keys, Ctrl+A/E, etc.)
     local orig_prompt="$PROMPT"
-    PROMPT="${__GHST_C_ACCENT}ghst>${__GHST_C_RESET} ${context_hint}"
+    PROMPT="%{${__GHST_C_ACCENT}%}ghst>%{${__GHST_C_RESET}%} ${context_hint}"
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
@@ -176,7 +180,7 @@ __ghst_history_search() {
 
     # Use recursive-edit for search query input
     local orig_prompt="$PROMPT"
-    PROMPT="${__GHST_C_ACCENT}ghst history>${__GHST_C_RESET} "
+    PROMPT="%{${__GHST_C_ACCENT}%}ghst history>%{${__GHST_C_RESET}%} "
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
