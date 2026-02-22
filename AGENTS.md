@@ -19,23 +19,25 @@ zsh (ZLE widgets)  ←──── Unix domain socket ────→  aishd (Py
 
 The zsh side sends newline-delimited JSON requests; the daemon responds with completions. The socket lives at `$XDG_RUNTIME_DIR/aish.sock` (fallback: `/tmp/aish-$UID.sock`).
 
+Shell files are **inlined** into the `eval "$(aish shell-init zsh)"` output at init time — they are NOT sourced at runtime. This avoids path resolution issues with non-standard installs (pipx, uv tool, etc.).
+
 ### File layout
 
 ```
 src/aish/
   __init__.py
   __main__.py    – python -m aish entry point
-  cli.py         – CLI commands (shell-init, start, stop, status)
+  cli.py         – CLI commands (shell-init, start, stop, status, init, model, provider, etc.)
   config.py      – ~/.config/aish/config.toml parsing, defaults, env var override
-  daemon.py      – asyncio socket server, request routing, session buffer
-  llm.py         – async LLM client (OpenAI + Anthropic), circuit breaker, caching
+  daemon.py      – asyncio socket server, request routing, session buffer, rate limiting, idle timeout
+  llm.py         – async LLM client (OpenAI + Anthropic), circuit breaker, caching, prompt caching
   prompts.py     – system/user prompt templates for all request types
   context.py     – cwd/git/env context gathering & caching
   safety.py      – dangerous-command detection, history/output sanitization
 shell/
-  zsh/aish.zsh           – precmd/preexec hooks, output capture, proactive suggestions
-  zsh/autocomplete.zsh   – ghost text via terminal escape codes, adaptive debounce
-  zsh/nl-command.zsh     – Ctrl+G natural-language widget
+  zsh/aish.zsh           – precmd/preexec hooks, history helper, auto-reload, cheat sheet
+  zsh/autocomplete.zsh   – ghost text via direct /dev/tty escape codes, zsocket IPC, adaptive debounce
+  zsh/nl-command.zsh     – Ctrl+G natural-language widget, Ctrl+R history search, Ctrl+Z undo
 tests/
   test_config.py, test_prompts.py, test_llm.py, test_daemon.py,
   test_safety.py, test_integration.py
@@ -86,11 +88,20 @@ uv run aish status            # check daemon status
 ## Key Design Decisions
 
 - **Never auto-execute** — all suggestions are shown as editable ghost text
-- **Proactive suggestions** — suggests commands on empty buffer from terminal output
-- **Adaptive debounce** — 200ms base, 100ms when buffer ≥8 chars
+- **Ghost text via /dev/tty** — POSTDISPLAY doesn't render ANSI escapes on zsh 5.9 macOS; $BUFFER is empty in `zle -F` callbacks. Direct `echo -n '\e[90m'... > /dev/tty` is the only working approach.
+- **zsocket for IPC** — `zsh/net/socket` provides native Unix socket access without spawning subprocesses per request. The fd integrates with `zle -F` for async response handling.
+- **Shell file inlining** — `shell-init` reads and prints the contents of all .zsh files rather than emitting `source` commands. Avoids path resolution issues with pipx/uv tool installs.
+- **Adaptive debounce** — 200ms base, 100ms when buffer ≥8 chars. Timer via `exec {fd}< <(sleep ...)` + `zle -F`.
 - **Circuit breaker** — 3 consecutive failures → 30s cooldown → probe
+- **Idle timeout** — daemon auto-exits after 30 minutes of inactivity
+- **Rate limiting** — 60 requests/minute to prevent burning API quota
 - **Safety** — dangerous command warnings, secret sanitization before LLM calls
-- **Zero terminal modifications** — works with any terminal via standard ZLE
-- **Completion spacing** — `_ensure_leading_space()` in `daemon.py` prevents LLM completions from merging into the buffer (e.g. `ffmpeg` + `-i` → `ffmpeg -i`). LLM responses use `.rstrip()` instead of `.strip()` to preserve leading whitespace.
-- **Auto-reload** — the shell checks if any `.py` source file is newer than the daemon's PID file (every 30 commands) and silently restarts the daemon when changes are detected. `shell-init` exports `__AISH_SRC_DIR` for this check.
-- **Model aliases over dated snapshots** — always use short model aliases (e.g. `claude-sonnet-4-5`, `claude-haiku-4-5`, `gpt-4o`) instead of dated snapshot names (e.g. `claude-haiku-4-5-20251001`). Aliases auto-resolve to the latest version, avoiding stale pinned models.
+- **Completion spacing** — `_ensure_leading_space()` in `daemon.py` adds spaces before `-|>&;<()` tokens
+- **Code fence stripping** — `_strip_code_fences()` regex removes markdown wrapping from LLM responses
+- **Prompt caching** — Anthropic `cache_control: ephemeral` on system prompt + beta header
+- **Temperature 0.3** — balances useful multi-token completions with determinism; 0 produces minimal completions
+- **Auto-reload** — the shell checks if any `.py` source file is newer than the daemon's PID file (every 30 commands) and silently restarts the daemon when changes are detected
+- **Socket liveness probe** — `shell-init` tries `zsocket` connect (not just file existence) to detect stale sockets from crashed daemons
+- **recursive-edit** — NL command and history search use ZLE recursive-edit for full line editing instead of raw `read -r`
+- **Ctrl+Z undo** — reverts NL-generated commands back to the original buffer
+- **Model aliases over dated snapshots** — always use short model aliases (e.g. `claude-sonnet-4-5`, `claude-haiku-4-5`, `gpt-4o`) instead of dated snapshot names

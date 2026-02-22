@@ -54,7 +54,7 @@ $ git sta‹tus --short›
 ```
 
 - **Tab** or **→** — Accept the full suggestion
-- **→** — Accept one word at a time
+- **Shift+→** — Accept one word at a time
 - **Esc** — Dismiss
 
 ### Natural Language Commands (Ctrl+G)
@@ -65,7 +65,7 @@ aish> find python files modified this week
 $ find . -name "*.py" -mtime -7█
 ```
 
-The generated command is placed in your buffer for review — **never auto-executed**.
+The generated command is placed in your buffer for review — **never auto-executed**. Press **Ctrl+Z** to undo and restore your original buffer.
 
 ### Error Correction
 
@@ -138,7 +138,7 @@ aish sends the following data to your configured LLM provider:
 - **Current buffer** (what you've typed so far)
 - **Current working directory**
 - **Recent shell history** (last 5-10 commands)
-- **Terminal output** (last 50 lines, for proactive suggestions only)
+- **Terminal output** (last 50 lines, for proactive suggestions — not yet implemented)
 
 aish does **NOT** send:
 
@@ -153,10 +153,10 @@ All sensitive data (API keys, passwords, tokens) is automatically stripped from 
 ```bash
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-pytest              # Run tests
-pytest -v           # Verbose
-ruff check src/     # Lint
-mypy src/aish/      # Type check
+uv run pytest              # Run tests
+uv run pytest -v           # Verbose
+uv run ruff check src/     # Lint
+uv run basedpyright src/aish/  # Type check
 ```
 
 The daemon auto-reloads during development: every 30 commands, the shell checks if any `.py` source file is newer than the running daemon and restarts it if so. No manual `aish stop && aish start` needed after editing Python code.
