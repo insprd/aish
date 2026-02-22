@@ -173,20 +173,31 @@ class AishConfig:
             return getattr(ProviderConfig(), field, None)
         return getattr(UIConfig(), field, None)
 
+    def _toml_escape(self, s: str) -> str:
+        """Escape a string for TOML basic string value."""
+        s = s.replace('\\', '\\\\')
+        s = s.replace('"', '\\"')
+        # Strip any control characters that would be invalid in TOML
+        import re
+        s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
+        s = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', s)
+        return s
+
     def write_toml(self, path: Path | None = None) -> None:
         """Write current config to a TOML file."""
         target = path or self.config_path
         target.parent.mkdir(parents=True, exist_ok=True)
+        esc = self._toml_escape
 
         lines = ['[provider]']
-        lines.append(f'name = "{self.provider.name}"')
+        lines.append(f'name = "{esc(self.provider.name)}"')
         if self.provider.api_key:
-            lines.append(f'api_key = "{self.provider.api_key}"')
+            lines.append(f'api_key = "{esc(self.provider.api_key)}"')
         if self.provider.api_base_url:
-            lines.append(f'api_base_url = "{self.provider.api_base_url}"')
-        lines.append(f'model = "{self.provider.model}"')
+            lines.append(f'api_base_url = "{esc(self.provider.api_base_url)}"')
+        lines.append(f'model = "{esc(self.provider.model)}"')
         if self.provider.autocomplete_model:
-            lines.append(f'autocomplete_model = "{self.provider.autocomplete_model}"')
+            lines.append(f'autocomplete_model = "{esc(self.provider.autocomplete_model)}"')
 
         lines.append('')
         lines.append('[ui]')
@@ -204,9 +215,9 @@ class AishConfig:
         if self.ui.autocomplete_min_chars != defaults.autocomplete_min_chars:
             lines.append(f'autocomplete_min_chars = {self.ui.autocomplete_min_chars}')
         if self.ui.nl_hotkey != defaults.nl_hotkey:
-            lines.append(f'nl_hotkey = "{self.ui.nl_hotkey}"')
+            lines.append(f'nl_hotkey = "{esc(self.ui.nl_hotkey)}"')
         if self.ui.history_search_hotkey != defaults.history_search_hotkey:
-            lines.append(f'history_search_hotkey = "{self.ui.history_search_hotkey}"')
+            lines.append(f'history_search_hotkey = "{esc(self.ui.history_search_hotkey)}"')
         if self.ui.error_correction != defaults.error_correction:
             v = "true" if self.ui.error_correction else "false"
             lines.append(f'error_correction = {v}')

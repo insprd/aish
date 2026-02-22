@@ -6,6 +6,7 @@ import argparse
 import getpass
 import json
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -14,6 +15,15 @@ import time
 from pathlib import Path
 
 from aish.config import AishConfig
+
+
+def _strip_control_chars(s: str) -> str:
+    """Remove ANSI escape sequences and control characters from a string."""
+    # Strip ANSI escape sequences (e.g. ^[[C from arrow keys)
+    s = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', s)
+    # Strip any remaining control characters (except common whitespace)
+    s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
+    return s.strip()
 
 
 def _get_src_dir() -> str:
@@ -218,6 +228,8 @@ def _cmd_init(args: argparse.Namespace) -> None:
         api_key = ""  # Don't store in config if env var is set
     else:
         api_key = getpass.getpass("\n  API key: ")
+        # Strip any terminal escape sequences or control characters
+        api_key = _strip_control_chars(api_key)
 
     # Models
     default_model, default_autocomplete = default_models[provider]
