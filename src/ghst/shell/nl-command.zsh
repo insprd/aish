@@ -6,6 +6,7 @@
 # ── Undo state ──────────────────────────────────────────────────────────────
 typeset -g __GHST_SAVED_BUFFER=""
 typeset -gi __GHST_SAVED_CURSOR=0
+typeset -gi __GHST_STATUS_SHOWN=0
 
 # ── Colors (configurable via config.toml, fallback to ANSI defaults) ────────
 typeset -g __GHST_C_ACCENT=$'\e[36m'
@@ -46,6 +47,23 @@ __ghst_stop_spinner() {
         wait $__GHST_SPINNER_PID 2>/dev/null
         __GHST_SPINNER_PID=0
         printf '\r\e[2K' > /dev/tty
+    fi
+}
+
+# Show a colored status message below the prompt via /dev/tty
+__ghst_show_status() {
+    local msg="$1"
+    # Save cursor, move to next line, print, restore cursor
+    printf '\n\e[2K  %s\e[0m' "$msg" > /dev/tty
+    typeset -g __GHST_STATUS_SHOWN=1
+}
+
+# Clear status message if one was shown
+__ghst_clear_status() {
+    if (( __GHST_STATUS_SHOWN )); then
+        # Move down one line, clear it, move back up
+        printf '\n\e[2K\e[A' > /dev/tty
+        __GHST_STATUS_SHOWN=0
     fi
 }
 
@@ -119,8 +137,8 @@ print(json.dumps(history[-10:]))
     if [[ -z "$response" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n'"  ${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon — run 'ghst start'${__GHST_C_RESET}"
         zle reset-prompt
+        __ghst_show_status "${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon — run 'ghst start'${__GHST_C_RESET}"
         return
     fi
 
@@ -145,8 +163,8 @@ except: pass
     if [[ -z "$command" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n'"  ${__GHST_C_WARNING}⚠${__GHST_C_RESET} ${__GHST_C_DIM}couldn't generate a command${__GHST_C_RESET}"
         zle reset-prompt
+        __ghst_show_status "${__GHST_C_WARNING}⚠${__GHST_C_RESET} ${__GHST_C_DIM}couldn't generate a command${__GHST_C_RESET}"
         return
     fi
 
@@ -157,14 +175,13 @@ except: pass
     # Place generated command in buffer
     BUFFER="$command"
     CURSOR=${#BUFFER}
+    zle reset-prompt
 
     # Show success hint (with warning if present)
-    local hint="${__GHST_C_SUCCESS}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
     if [[ -n "$warning" ]]; then
-        POSTDISPLAY=$'\n'"  ${__GHST_C_WARNING}⚠ ${warning}${__GHST_C_RESET}"$'\n'"  ${hint}"
-    else
-        POSTDISPLAY=$'\n'"  ${hint}"
+        __ghst_show_status "${__GHST_C_WARNING}⚠ ${warning}${__GHST_C_RESET}"
     fi
+    __ghst_show_status "${__GHST_C_SUCCESS}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
 
     zle reset-prompt
 }
@@ -234,8 +251,8 @@ print(json.dumps(history[-500:]))
     if [[ -z "$response" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n'"  ${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon${__GHST_C_RESET}"
         zle reset-prompt
+        __ghst_show_status "${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon${__GHST_C_RESET}"
         return
     fi
 
@@ -257,20 +274,21 @@ except: pass
         __GHST_SAVED_CURSOR=$saved_cursor
         BUFFER="$first_cmd"
         CURSOR=${#BUFFER}
-        POSTDISPLAY=$'\n'"  ${__GHST_C_SUCCESS}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
+        zle reset-prompt
+        __ghst_show_status "${__GHST_C_SUCCESS}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
     else
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n'"  ${__GHST_C_WARNING}⚠${__GHST_C_RESET} ${__GHST_C_DIM}no matching history found${__GHST_C_RESET}"
+        zle reset-prompt
+        __ghst_show_status "${__GHST_C_WARNING}⚠${__GHST_C_RESET} ${__GHST_C_DIM}no matching history found${__GHST_C_RESET}"
     fi
-
-    zle reset-prompt
 }
 zle -N __ghst_history_search
 
 # ── Undo: restore original buffer before NL/history ─────────────────────────
 __ghst_nl_undo() {
     if [[ -n "$__GHST_SAVED_BUFFER" ]]; then
+        __ghst_clear_status
         BUFFER="$__GHST_SAVED_BUFFER"
         CURSOR=$__GHST_SAVED_CURSOR
         __GHST_SAVED_BUFFER=""
