@@ -1,0 +1,66 @@
+# Default aish configuration
+# Copy to ~/.config/aish/config.toml and edit as needed.
+
+[provider]
+# LLM provider: "openai" or "anthropic"
+name = "openai"
+
+# API key (or set AISH_API_KEY environment variable)
+# api_key = "sk-..."
+
+# API base URL (defaults per provider; override for OpenAI-compatible servers)
+# api_base_url = "https://api.openai.com/v1"
+
+# Model for NL commands and history search
+model = "gpt-4o"
+
+# Fast model for autocomplete, proactive suggestions, and error correction
+# Defaults to the value of `model` if not set.
+# autocomplete_model = "gpt-4o-mini"
+
+[ui]
+# Base debounce delay (ms) before triggering autocomplete
+autocomplete_delay_ms = 200
+
+# Reduced debounce delay (ms) when buffer length >= autocomplete_delay_threshold
+autocomplete_delay_short_ms = 100
+
+# Character count at which debounce switches to autocomplete_delay_short_ms
+autocomplete_delay_threshold = 8
+
+# Minimum characters typed before autocomplete fires
+autocomplete_min_chars = 3
+
+# Hotkey for natural language command prompt
+nl_hotkey = "^G"
+
+# Hotkey for natural language history search (replaces native Ctrl+R)
+history_search_hotkey = "^R"
+
+# Hotkey for in-shell cheat sheet
+cheat_sheet_hotkey = "^_"
+
+# Max history entries to send to LLM for history search
+history_search_limit = 500
+
+# Enable/disable error correction (suggest fixes for failed commands)
+error_correction = true
+
+# Enable/disable proactive suggestions (suggest next command from terminal output)
+proactive_suggestions = true
+
+# Max lines of terminal output to capture for proactive suggestions
+proactive_output_lines = 50
+
+# Commands to skip output capture for (interactive programs)
+proactive_capture_blocklist = [
+    "vim", "nvim", "vi", "nano", "emacs", "pico",
+    "less", "more", "most", "bat",
+    "top", "htop", "btop", "glances",
+    "tmux", "screen",
+    "ssh", "mosh",
+    "python", "ipython", "node", "irb", "ghci",
+    "fzf", "sk",
+    "man", "info",
+    "watch",
+]
