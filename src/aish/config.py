@@ -9,7 +9,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -138,6 +138,129 @@ class AishConfig:
         )
 
         return cls(provider=provider, ui=ui, config_path=config_path)
+
+    # Map of flat key names to (section, field) for set/get/reset
+    FLAT_KEYS: ClassVar[dict[str, tuple[str, str]]] = {
+        "provider": ("provider", "name"),
+        "api_key": ("provider", "api_key"),
+        "api_base_url": ("provider", "api_base_url"),
+        "model": ("provider", "model"),
+        "autocomplete_model": ("provider", "autocomplete_model"),
+        "autocomplete_delay_ms": ("ui", "autocomplete_delay_ms"),
+        "autocomplete_delay_short_ms": ("ui", "autocomplete_delay_short_ms"),
+        "autocomplete_delay_threshold": ("ui", "autocomplete_delay_threshold"),
+        "autocomplete_min_chars": ("ui", "autocomplete_min_chars"),
+        "nl_hotkey": ("ui", "nl_hotkey"),
+        "history_search_hotkey": ("ui", "history_search_hotkey"),
+        "cheat_sheet_hotkey": ("ui", "cheat_sheet_hotkey"),
+        "history_search_limit": ("ui", "history_search_limit"),
+        "error_correction": ("ui", "error_correction"),
+        "proactive_suggestions": ("ui", "proactive_suggestions"),
+        "proactive_output_lines": ("ui", "proactive_output_lines"),
+    }
+
+    def get_flat(self, key: str) -> Any:
+        """Get a config value by flat key name."""
+        if key not in self.FLAT_KEYS:
+            return None
+        section, field = self.FLAT_KEYS[key]
+        if section == "provider":
+            return getattr(self.provider, field, None)
+        return getattr(self.ui, field, None)
+
+    def get_default(self, key: str) -> Any:
+        """Get the default value for a flat key."""
+        if key not in self.FLAT_KEYS:
+            return None
+        section, field = self.FLAT_KEYS[key]
+        if section == "provider":
+            return getattr(ProviderConfig(), field, None)
+        return getattr(UIConfig(), field, None)
+
+    def write_toml(self, path: Path | None = None) -> None:
+        """Write current config to a TOML file."""
+        target = path or self.config_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        lines = ['[provider]']
+        lines.append(f'name = "{self.provider.name}"')
+        if self.provider.api_key:
+            lines.append(f'api_key = "{self.provider.api_key}"')
+        if self.provider.api_base_url:
+            lines.append(f'api_base_url = "{self.provider.api_base_url}"')
+        lines.append(f'model = "{self.provider.model}"')
+        if self.provider.autocomplete_model:
+            lines.append(f'autocomplete_model = "{self.provider.autocomplete_model}"')
+
+        lines.append('')
+        lines.append('[ui]')
+        defaults = UIConfig()
+        if self.ui.autocomplete_delay_ms != defaults.autocomplete_delay_ms:
+            lines.append(f'autocomplete_delay_ms = {self.ui.autocomplete_delay_ms}')
+        if self.ui.autocomplete_delay_short_ms != defaults.autocomplete_delay_short_ms:
+            lines.append(
+                f'autocomplete_delay_short_ms = {self.ui.autocomplete_delay_short_ms}'
+            )
+        if self.ui.autocomplete_delay_threshold != defaults.autocomplete_delay_threshold:
+            lines.append(
+                f'autocomplete_delay_threshold = {self.ui.autocomplete_delay_threshold}'
+            )
+        if self.ui.autocomplete_min_chars != defaults.autocomplete_min_chars:
+            lines.append(f'autocomplete_min_chars = {self.ui.autocomplete_min_chars}')
+        if self.ui.nl_hotkey != defaults.nl_hotkey:
+            lines.append(f'nl_hotkey = "{self.ui.nl_hotkey}"')
+        if self.ui.history_search_hotkey != defaults.history_search_hotkey:
+            lines.append(f'history_search_hotkey = "{self.ui.history_search_hotkey}"')
+        if self.ui.error_correction != defaults.error_correction:
+            v = "true" if self.ui.error_correction else "false"
+            lines.append(f'error_correction = {v}')
+        if self.ui.proactive_suggestions != defaults.proactive_suggestions:
+            v = "true" if self.ui.proactive_suggestions else "false"
+            lines.append(f'proactive_suggestions = {v}')
+        if self.ui.proactive_output_lines != defaults.proactive_output_lines:
+            lines.append(f'proactive_output_lines = {self.ui.proactive_output_lines}')
+        if self.ui.history_search_limit != defaults.history_search_limit:
+            lines.append(f'history_search_limit = {self.ui.history_search_limit}')
+
+        lines.append('')
+        target.write_text('\n'.join(lines), encoding='utf-8')
+
+    def set_value(self, key: str, value: str) -> bool:
+        """Set a config value by flat key and save to disk.
+
+        Returns True if successful, False if key not found.
+        """
+        if key not in self.FLAT_KEYS:
+            return False
+        section, field_name = self.FLAT_KEYS[key]
+
+        obj = self.provider if section == "provider" else self.ui
+
+        current = getattr(obj, field_name)
+        # Type coercion
+        if isinstance(current, bool):
+            value_typed: Any = value.lower() in ("true", "1", "yes", "on")
+        elif isinstance(current, int):
+            value_typed = int(value)
+        else:
+            value_typed = value
+
+        setattr(obj, field_name, value_typed)
+        self.write_toml()
+        return True
+
+    def reset_value(self, key: str) -> bool:
+        """Reset a config value to its default and save to disk."""
+        default = self.get_default(key)
+        if default is None and key not in self.FLAT_KEYS:
+            return False
+        section, field_name = self.FLAT_KEYS[key]
+        if section == "provider":
+            setattr(self.provider, field_name, default)
+        else:
+            setattr(self.ui, field_name, default)
+        self.write_toml()
+        return True
 
     def get_socket_path(self) -> Path:
         """Return the daemon socket path."""
