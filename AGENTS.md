@@ -89,6 +89,10 @@ uv run ghst status            # check daemon status
 
 - **Never auto-execute** — all suggestions are shown as editable ghost text
 - **Ghost text via /dev/tty** — POSTDISPLAY doesn't render ANSI escapes on zsh 5.9 macOS; $BUFFER is empty in `zle -F` callbacks. Direct `echo -n '\e[90m'... > /dev/tty` is the only working approach.
+- **All colored output via /dev/tty** — POSTDISPLAY cannot render ANSI escape sequences at all on zsh 5.9 macOS. Any colored UI element (status messages, spinners, ghost text) must write directly to `/dev/tty`. POSTDISPLAY should only be used for plain uncolored text.
+- **ANSI-C quoting in eval** — `$'\e[36m'` does NOT work inside `"${param:-...}"` double-quoted parameter expansion when shell code runs through `eval "$(cmd)"`. Always assign defaults separately: `typeset -g VAR=$'\e[36m'` then `[[ -n "$OVERRIDE" ]] && VAR="$OVERRIDE"`.
+- **PROMPT escape wrapping** — escape sequences in zsh PROMPT must be wrapped in `%{...%}` (e.g. `%{$'\e[36m'%}text%{$'\e[0m'%}`) so ZLE calculates cursor position correctly. Without this, line editing breaks on long inputs.
+- **Configurable UI colors** — all colored UI elements (ghost text, accent, success, warning, error) are configurable via `config.toml`. Colors are converted to escape sequences in `cli.py` and exported as `__GHST_*_ESC` env vars. Shell code sets ANSI defaults then overrides from env vars.
 - **zsocket for IPC** — `zsh/net/socket` provides native Unix socket access without spawning subprocesses per request. The fd integrates with `zle -F` for async response handling.
 - **Shell file inlining** — `shell-init` reads and prints the contents of all .zsh files rather than emitting `source` commands. Avoids path resolution issues with pipx/uv tool installs.
 - **Adaptive debounce** — 200ms base, 100ms when buffer ≥8 chars. Timer via `exec {fd}< <(sleep ...)` + `zle -F`.
