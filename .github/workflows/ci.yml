@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - run: uv venv && uv pip install -e ".[dev]"
+      - run: uv sync --extra dev
       - run: uv run ruff check src/ tests/
 
   typecheck:
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - run: uv venv && uv pip install -e ".[dev]"
+      - run: uv sync --extra dev
       - run: uv run basedpyright src/aish/
 
   test:
@@ -32,7 +32,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - run: uv venv && uv pip install -e ".[dev]"
-      - run: uv run pytest -v
+      - run: uv python install ${{ matrix.python-version }}
+      - run: uv sync --extra dev
+      - run: uv run python -m pytest -v
