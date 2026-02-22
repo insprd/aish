@@ -14,6 +14,11 @@ typeset -g __AISH_CMD_COUNT=0
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+# Get recent history entries (one per line)
+__aish_get_history() {
+    fc -l -50 -1 2>/dev/null | sed 's/^[[:space:]]*[0-9]*[[:space:]]*//'
+}
+
 # Send a JSON request to the daemon and print the response
 __aish_request() {
     local json="$1"

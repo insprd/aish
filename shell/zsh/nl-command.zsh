@@ -3,6 +3,10 @@
 # Opens an inline prompt where the user describes what they want in English.
 # The LLM generates a shell command and places it in the buffer for review.
 
+# ── Undo state ──────────────────────────────────────────────────────────────
+typeset -g __AISH_SAVED_BUFFER=""
+typeset -gi __AISH_SAVED_CURSOR=0
+
 # ── NL Command Widget ───────────────────────────────────────────────────────
 __aish_nl_command() {
     # Save current buffer for undo
@@ -10,7 +14,7 @@ __aish_nl_command() {
     local saved_cursor=$CURSOR
 
     # Clear any ghost text
-    __aish_clear_ghost 2>/dev/null
+    __aish_clear_suggestion 2>/dev/null
 
     # Show context hint if buffer has content
     local context_hint=""
@@ -20,29 +24,31 @@ __aish_nl_command() {
         context_hint="($short_buffer) "
     fi
 
-    # Prompt for NL input
+    # Use recursive-edit for full line editing (arrow keys, Ctrl+A/E, etc.)
+    local orig_prompt="$PROMPT"
+    PROMPT="aish> ${context_hint}"
     BUFFER=""
+    CURSOR=0
     POSTDISPLAY=""
-    zle -R
+    zle reset-prompt
+    zle recursive-edit
+    local edit_status=$?
 
-    # Use vared for inline editing
-    local nl_input=""
-    local prompt_text="aish> ${context_hint}"
+    local nl_input="$BUFFER"
+    PROMPT="$orig_prompt"
 
-    # Temporarily change PS1 for the input
-    print -n "\r\e[2K${prompt_text}"
-    read -r nl_input
-
-    # Handle empty input (cancel)
-    if [[ -z "$nl_input" ]]; then
+    # Handle cancel (Ctrl+C or empty)
+    if (( edit_status != 0 )) || [[ -z "$nl_input" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        zle -R
+        zle reset-prompt
         return
     fi
 
     # Show spinner
-    print -n "\r\e[2K${prompt_text}${nl_input}\n  ⠋ thinking..."
+    BUFFER=""
+    POSTDISPLAY=$'\n  ⠋ thinking...'
+    zle reset-prompt
 
     # Build request
     local history_json
@@ -65,13 +71,13 @@ print(json.dumps(history[-10:]))
     response=$(__aish_request "$json_request")
 
     # Clear spinner
-    print -n "\r\e[2K\e[A\r\e[2K"
+    POSTDISPLAY=""
 
     if [[ -z "$response" ]]; then
-        print -n "\r\e[2Kaish: couldn't reach daemon — run 'aish start'\r"
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        zle -R
+        POSTDISPLAY=$'\n  aish: couldn'\''t reach daemon — run '\''aish start'\'''
+        zle reset-prompt
         return
     fi
 
@@ -94,12 +100,16 @@ except: pass
 " <<< "$response")
 
     if [[ -z "$command" ]]; then
-        print -n "\r\e[2Kaish: couldn't generate a command\r"
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        zle -R
+        POSTDISPLAY=$'\n  aish: couldn'\''t generate a command'
+        zle reset-prompt
         return
     fi
+
+    # Save for undo (Ctrl+Z)
+    __AISH_SAVED_BUFFER="$saved_buffer"
+    __AISH_SAVED_CURSOR=$saved_cursor
 
     # Place generated command in buffer
     BUFFER="$command"
@@ -107,11 +117,10 @@ except: pass
 
     # Show warning if present
     if [[ -n "$warning" ]]; then
-        POSTDISPLAY=$'\n\e[33m'"${warning}"$'\e[0m'
+        POSTDISPLAY=$'\n'"${warning}"
     fi
 
-    # Brief highlight to show it's AI-generated (will clear on next redraw)
-    zle -R
+    zle reset-prompt
 }
 zle -N __aish_nl_command
 
@@ -121,95 +130,68 @@ __aish_history_search() {
     local saved_cursor=$CURSOR
 
     # Clear ghost text
-    __aish_clear_ghost 2>/dev/null
+    __aish_clear_suggestion 2>/dev/null
 
-    # Prompt for search query
+    # Use recursive-edit for search query input
+    local orig_prompt="$PROMPT"
+    PROMPT="aish history> "
     BUFFER=""
+    CURSOR=0
     POSTDISPLAY=""
-    zle -R
+    zle reset-prompt
+    zle recursive-edit
+    local edit_status=$?
 
-    local query=""
-    print -n "\r\e[2Kaish history> "
-    read -r query
+    local query="$BUFFER"
+    PROMPT="$orig_prompt"
 
-    if [[ -z "$query" ]]; then
+    if (( edit_status != 0 )) || [[ -z "$query" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        zle -R
+        zle reset-prompt
         return
     fi
 
-    print -n "\r\e[2Kaish history> ${query}\n  ⠋ searching..."
+    # Show spinner
+    BUFFER=""
+    POSTDISPLAY=$'\n  ⠋ searching...'
+    zle reset-prompt
 
-    # Get full history
+    # Get history entries (deduplicated)
     local history_json
     history_json=$(python3 -c "
 import json
 history = []
-try:
-    import subprocess
-    result = subprocess.run(['fc', '-l', '1'], capture_output=True, text=True, shell=True)
-    if result.returncode == 0:
-        for line in result.stdout.strip().split('\n'):
-            parts = line.strip().split(None, 1)
-            if len(parts) == 2:
-                history.append(parts[1])
-except: pass
-# Fallback: just use recent history
-if not history:
-    history = '''$(__aish_get_history)'''.strip().split('\n')
-history = [h for h in history if h][-500:]
-print(json.dumps(history))
+seen = set()
+lines = '''$(__aish_get_history)'''.strip().split('\n')
+for l in lines:
+    l = l.strip()
+    if l and l not in seen:
+        seen.add(l)
+        history.append(l)
+print(json.dumps(history[-500:]))
 " 2>/dev/null)
     [[ -z "$history_json" ]] && history_json='[]'
 
     local escaped_query
-    escaped_query=$(python3 -c "import json; print(json.dumps('''$query'''))" 2>/dev/null)
+    escaped_query=$(printf '%s' "$query" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null)
 
     local json_request="{\"type\":\"history_search\",\"query\":$escaped_query,\"history\":$history_json,\"shell\":\"zsh\"}"
 
     local response
     response=$(__aish_request "$json_request")
 
-    # Clear spinner
-    print -n "\r\e[2K\e[A\r\e[2K"
+    POSTDISPLAY=""
 
     if [[ -z "$response" ]]; then
-        print -n "\r\e[2Kaish: couldn't reach daemon\r"
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        zle -R
+        POSTDISPLAY=$'\n  aish: couldn'\''t reach daemon'
+        zle reset-prompt
         return
     fi
 
-    # Parse results
-    local results
-    results=$(python3 -c "
-import json, sys
-try:
-    d = json.loads(sys.stdin.read())
-    results = d.get('results', [])
-    if not results:
-        print('')
-    else:
-        for i, r in enumerate(results[:10]):
-            cmd = r.get('command', '') if isinstance(r, dict) else str(r)
-            prefix = '→' if i == 0 else ' '
-            print(f'  {prefix} {cmd}')
-except:
-    print('')
-" <<< "$response")
-
-    if [[ -z "$results" ]]; then
-        print -n "\r\e[2Kaish: no matching history found\r"
-        BUFFER="$saved_buffer"
-        CURSOR=$saved_cursor
-        zle -R
-        return
-    fi
-
-    # Display results and let user pick the first one
-    # (Full fzf-style selection is a stretch goal)
+    # Parse first result
     local first_cmd
     first_cmd=$(python3 -c "
 import json, sys
@@ -223,25 +205,35 @@ except: pass
 " <<< "$response")
 
     if [[ -n "$first_cmd" ]]; then
-        # Show results briefly
-        print "$results"
-        print "  ↑↓ navigate, Enter to select, Esc to cancel"
-
-        # For now, select the first result
+        __AISH_SAVED_BUFFER="$saved_buffer"
+        __AISH_SAVED_CURSOR=$saved_cursor
         BUFFER="$first_cmd"
         CURSOR=${#BUFFER}
     else
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
+        POSTDISPLAY=$'\n  aish: no matching history found'
     fi
 
-    zle -R
+    zle reset-prompt
 }
 zle -N __aish_history_search
 
-# ── Undo: restore original buffer ───────────────────────────────────────────
-# Ctrl+Z is handled by zsh's native undo (undo widget)
+# ── Undo: restore original buffer before NL/history ─────────────────────────
+__aish_nl_undo() {
+    if [[ -n "$__AISH_SAVED_BUFFER" ]]; then
+        BUFFER="$__AISH_SAVED_BUFFER"
+        CURSOR=$__AISH_SAVED_CURSOR
+        __AISH_SAVED_BUFFER=""
+        POSTDISPLAY=""
+        zle reset-prompt
+    else
+        zle undo
+    fi
+}
+zle -N __aish_nl_undo
 
 # ── Keybindings ──────────────────────────────────────────────────────────────
 bindkey '^G' __aish_nl_command        # Ctrl+G — NL command
 bindkey '^R' __aish_history_search    # Ctrl+R — History search
+bindkey '^Z' __aish_nl_undo           # Ctrl+Z — Undo NL command

@@ -52,7 +52,21 @@ __aish_send_request() {
     buffer_json=$(printf '%s' "$buffer" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null) || buffer_json="\"$buffer\""
     cwd_json=$(printf '%s' "$PWD" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null) || cwd_json="\"$PWD\""
 
-    local json_req="{\"type\":\"complete\",\"request_id\":\"ac-${RANDOM}\",\"buffer\":${buffer_json},\"cursor_pos\":${cursor_pos},\"cwd\":${cwd_json},\"shell\":\"zsh\",\"history\":[],\"exit_status\":${__AISH_LAST_EXIT:-0}}"
+    # Build history JSON from last 5 commands
+    local -a hist_entries
+    local hist_json="["
+    local first=1
+    local IFS=$'\n'
+    for entry in $(fc -l -5 -1 2>/dev/null | sed 's/^[[:space:]]*[0-9]*[[:space:]]*//'); do
+        local escaped
+        escaped=$(printf '%s' "$entry" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null) || continue
+        (( first )) || hist_json+=","
+        hist_json+="$escaped"
+        first=0
+    done
+    hist_json+="]"
+
+    local json_req="{\"type\":\"complete\",\"request_id\":\"ac-${RANDOM}\",\"buffer\":${buffer_json},\"cursor_pos\":${cursor_pos},\"cwd\":${cwd_json},\"shell\":\"zsh\",\"history\":${hist_json},\"exit_status\":${__AISH_LAST_EXIT:-0}}"
 
     # Close any previous in-flight request
     if [[ -n "$__AISH_RESPONSE_FD" ]]; then
@@ -183,6 +197,14 @@ __aish_accept_suggestion() {
     fi
 }
 
+# ── Dismiss suggestion (Esc) ─────────────────────────────────────────────────
+__aish_dismiss() {
+    if [[ -n "$__AISH_SUGGESTION" ]]; then
+        __aish_clear_suggestion
+        __aish_cancel_debounce
+    fi
+}
+
 # ── Accept one word (Shift+→) ───────────────────────────────────────────────
 __aish_accept_word() {
     if [[ -n "$__AISH_SUGGESTION" ]]; then
@@ -254,6 +276,7 @@ zle -N __aish_accept_suggestion
 zle -N __aish_accept_word
 zle -N __aish_tab_accept
 zle -N __aish_line_finish
+zle -N __aish_dismiss
 
 # ── Keybindings ──────────────────────────────────────────────────────────────
 bindkey -M main -R ' '-'~' __aish_self_insert   # All printable chars
@@ -262,3 +285,4 @@ bindkey '^[[C' __aish_accept_suggestion          # Right arrow — accept full
 bindkey '^[[1;2C' __aish_accept_word             # Shift+Right — accept word
 bindkey '\t' __aish_tab_accept                   # Tab
 bindkey '^M' __aish_line_finish                  # Enter
+bindkey '\e' __aish_dismiss                      # Esc — dismiss suggestion

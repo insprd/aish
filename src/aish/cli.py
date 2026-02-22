@@ -34,7 +34,7 @@ def _get_src_dir() -> str:
 def _shell_init_zsh(config: AishConfig) -> None:
     """Output zsh integration code for eval."""
     src_dir = _get_src_dir()
-    shell_dir = str(Path(__file__).resolve().parent.parent.parent / "shell" / "zsh")
+    shell_dir = Path(__file__).resolve().parent.parent.parent / "shell" / "zsh"
     socket_path = config.get_socket_path()
     # Find the bin directory containing the aish entry point
     bin_dir = str(Path(sys.executable).resolve().parent)
@@ -43,7 +43,6 @@ def _shell_init_zsh(config: AishConfig) -> None:
 # Add to .zshrc: eval "$(aish shell-init zsh)"
 
 export __AISH_SRC_DIR="{src_dir}"
-export __AISH_SHELL_DIR="{shell_dir}"
 export __AISH_SOCKET="{socket_path}"
 
 # Ensure aish CLI is on PATH
@@ -52,13 +51,26 @@ export __AISH_SOCKET="{socket_path}"
 # Auto-start daemon if not running
 if [[ ! -S "$__AISH_SOCKET" ]]; then
     aish start --quiet &>/dev/null &!
+else
+    # Probe socket liveness — stale file from crashed daemon?
+    zmodload zsh/net/socket 2>/dev/null
+    if ! zsocket "$__AISH_SOCKET" 2>/dev/null; then
+        rm -f "$__AISH_SOCKET" 2>/dev/null
+        aish start --quiet &>/dev/null &!
+    else
+        exec {{$REPLY}}<&- 2>/dev/null
+    fi
 fi
-
-# Source shell integration scripts
-for f in "$__AISH_SHELL_DIR"/*.zsh; do
-    [[ -f "$f" ]] && source "$f"
-done
 ''')
+
+    # Inline shell integration files (avoids runtime source path issues)
+    for name in ("aish.zsh", "autocomplete.zsh", "nl-command.zsh"):
+        source_file = shell_dir / name
+        if source_file.exists():
+            print(f"# ── {name} {'─' * (60 - len(name))}")
+            print(source_file.read_text())
+        else:
+            print(f"# WARNING: {name} not found at {source_file}", file=sys.stderr)
 
 
 def _cmd_shell_init(args: argparse.Namespace) -> None:

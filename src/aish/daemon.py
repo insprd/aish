@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import signal
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,25 @@ from aish.prompts import (
 from aish.safety import check_dangerous, sanitize_history, sanitize_output
 
 logger = logging.getLogger("aish")
+
+RATE_LIMIT_RPM = 60  # max requests per minute to LLM
+
+
+class RateLimiter:
+    """Simple RPM-based rate limiter."""
+
+    def __init__(self, rpm: int = RATE_LIMIT_RPM) -> None:
+        self.rpm = rpm
+        self._timestamps: deque[float] = deque()
+
+    def allow(self) -> bool:
+        now = time.monotonic()
+        while self._timestamps and now - self._timestamps[0] > 60:
+            self._timestamps.popleft()
+        if len(self._timestamps) >= self.rpm:
+            return False
+        self._timestamps.append(now)
+        return True
 
 
 @dataclass
@@ -108,15 +128,20 @@ def _strip_code_fences(text: str) -> str:
 class AishDaemon:
     """Main daemon process."""
 
+    IDLE_TIMEOUT_SECONDS: float = 30 * 60  # 30 minutes
+
     def __init__(self, config: AishConfig | None = None) -> None:
         self.config = config or AishConfig.load()
         self.llm = LLMClient(self.config)
         self.context = ContextInfo()
         self.session = SessionBuffer()
         self._server: asyncio.AbstractServer | None = None
+        self._last_activity: float = 0.0
+        self._rate_limiter = RateLimiter()
 
     async def handle_request(self, data: dict[str, Any]) -> dict[str, Any]:
         """Route a request to the appropriate handler."""
+        self._last_activity = asyncio.get_event_loop().time()
         req_type = data.get("type", "")
         try:
             if req_type == "complete":
@@ -144,6 +169,11 @@ class AishDaemon:
         last_command = data.get("last_command", "")
         last_output = data.get("last_output", "")
         request_id = data.get("request_id", "")
+
+        # Rate limit check
+        if not self._rate_limiter.allow():
+            logger.debug("Rate limit exceeded — dropping request")
+            return {"type": "complete", "request_id": request_id, "suggestion": ""}
 
         is_proactive = not buffer and last_output
 
@@ -355,10 +385,17 @@ class AishDaemon:
         # Write PID file
         pid_path.write_text(str(os.getpid()))
 
+        self._last_activity = asyncio.get_event_loop().time()
         logger.info("aish daemon started (pid %d, socket %s)", os.getpid(), socket_path)
 
         async with self._server:
-            await self._server.serve_forever()
+            while True:
+                await asyncio.sleep(60)  # check every minute
+                idle = asyncio.get_event_loop().time() - self._last_activity
+                if idle >= self.IDLE_TIMEOUT_SECONDS:
+                    logger.info("Idle timeout (%.0fs) — shutting down", idle)
+                    break
+            await self.stop()
 
     async def stop(self) -> None:
         """Stop the daemon."""

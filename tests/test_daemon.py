@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from aish.config import AishConfig
-from aish.daemon import AishDaemon, SessionBuffer, _ensure_leading_space, _strip_code_fences
+from aish.daemon import AishDaemon, RateLimiter, SessionBuffer, _ensure_leading_space, _strip_code_fences
 
 
 class TestEnsureLeadingSpace:
@@ -45,6 +45,19 @@ class TestStripCodeFences:
 
     def test_strips_surrounding_whitespace(self) -> None:
         assert _strip_code_fences("  ```\nls -la\n```  ") == "ls -la"
+
+
+class TestRateLimiter:
+    def test_allows_under_limit(self) -> None:
+        rl = RateLimiter(rpm=5)
+        for _ in range(5):
+            assert rl.allow() is True
+
+    def test_blocks_over_limit(self) -> None:
+        rl = RateLimiter(rpm=3)
+        for _ in range(3):
+            assert rl.allow() is True
+        assert rl.allow() is False
 
 
 class TestSessionBuffer:
