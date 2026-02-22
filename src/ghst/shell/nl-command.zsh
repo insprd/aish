@@ -146,7 +146,8 @@ __ghst_nl_command() {
         return
     fi
 
-    # Show animated spinner
+    # Clear the NL input line and show spinner
+    printf '\r\e[2K' > /dev/tty
     BUFFER=""
     POSTDISPLAY=""
     zle reset-prompt
@@ -259,7 +260,8 @@ __ghst_history_search() {
         return
     fi
 
-    # Show animated spinner
+    # Clear the search input line and show spinner
+    printf '\r\e[2K' > /dev/tty
     BUFFER=""
     POSTDISPLAY=""
     zle reset-prompt
