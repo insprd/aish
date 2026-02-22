@@ -111,8 +111,14 @@ __ghst_nl_command() {
     local saved_buffer="$BUFFER"
     local saved_cursor=$CURSOR
 
-    # Clear any ghost text
+    # Clear any ghost text and cancel in-flight autocomplete
     __ghst_clear_suggestion 2>/dev/null
+    __ghst_cancel_debounce 2>/dev/null
+    if [[ -n "$__GHST_RESPONSE_FD" ]]; then
+        zle -F $__GHST_RESPONSE_FD 2>/dev/null
+        exec {__GHST_RESPONSE_FD}<&- 2>/dev/null
+        __GHST_RESPONSE_FD=""
+    fi
 
     # Show context hint if buffer has content
     local context_hint=""
@@ -234,8 +240,14 @@ __ghst_history_search() {
     local saved_buffer="$BUFFER"
     local saved_cursor=$CURSOR
 
-    # Clear ghost text
+    # Clear ghost text and cancel in-flight autocomplete
     __ghst_clear_suggestion 2>/dev/null
+    __ghst_cancel_debounce 2>/dev/null
+    if [[ -n "$__GHST_RESPONSE_FD" ]]; then
+        zle -F $__GHST_RESPONSE_FD 2>/dev/null
+        exec {__GHST_RESPONSE_FD}<&- 2>/dev/null
+        __GHST_RESPONSE_FD=""
+    fi
 
     # Use recursive-edit for search query input
     local orig_prompt="$PROMPT"
