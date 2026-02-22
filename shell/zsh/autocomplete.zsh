@@ -6,7 +6,7 @@
 # ── State ────────────────────────────────────────────────────────────────────
 typeset -g __AISH_SUGGESTION=""
 typeset -g __AISH_REQUEST_ID=""
-typeset -g __AISH_DEBOUNCE_FD=""
+typeset -g __AISH_PENDING_FD=""
 typeset -g __AISH_PROACTIVE_PENDING=0
 
 # ── Configuration ────────────────────────────────────────────────────────────
@@ -103,85 +103,69 @@ except: pass
     fi
 }
 
-# ── Send autocomplete request ────────────────────────────────────────────────
-__aish_send_request() {
+# ── Send autocomplete request (async with built-in delay) ────────────────────
+__aish_send_autocomplete() {
     # Don't send if socket doesn't exist
     [[ -S "$__AISH_SOCKET" ]] || return
 
+    # Cancel any pending request
+    if [[ -n "$__AISH_PENDING_FD" ]]; then
+        zle -F $__AISH_PENDING_FD 2>/dev/null
+        exec {__AISH_PENDING_FD}<&- 2>/dev/null
+        __AISH_PENDING_FD=""
+    fi
+
     __aish_gen_request_id
+    local req_id="$__AISH_REQUEST_ID"
+    local buf="$BUFFER"
+    local cur="$CURSOR"
+    local cwd="$PWD"
+    local exit_st="$__AISH_LAST_EXIT"
 
-    local history_json
-    history_json=$(python3 -c "
-import json, sys
-lines = sys.argv[1].strip().split('\n')
-lines = [l for l in lines if l]
-print(json.dumps(lines[-5:]))
-" "$(__aish_get_history)" 2>/dev/null)
-    [[ -z "$history_json" ]] && history_json='[]'
-
-    local json_request
-    if [[ -z "$BUFFER" && -n "$__AISH_CAPTURED_OUTPUT" && "$__AISH_PROACTIVE" == "1" ]]; then
-        # Proactive suggestion (empty buffer with output)
-        json_request=$(python3 -c "
-import json, sys
-output = sys.argv[1]
-cmd = sys.argv[2]
-req_id = sys.argv[3]
-cwd = sys.argv[4]
-history = json.loads(sys.argv[5])
-exit_status = int(sys.argv[6])
-print(json.dumps({'type':'complete','request_id':req_id,'buffer':'','cursor_pos':0,'cwd':cwd,'shell':'zsh','history':history,'exit_status':exit_status,'last_command':cmd,'last_output':output}))
-" "$__AISH_CAPTURED_OUTPUT" "$__AISH_LAST_CMD" "$__AISH_REQUEST_ID" "$PWD" "$history_json" "$__AISH_LAST_EXIT" 2>/dev/null)
-    else
-        # Regular autocomplete
-        json_request=$(python3 -c "
-import json, sys
-buf = sys.argv[1]
-cursor = int(sys.argv[2])
-req_id = sys.argv[3]
-cwd = sys.argv[4]
-history = json.loads(sys.argv[5])
-exit_status = int(sys.argv[6])
-print(json.dumps({'type':'complete','request_id':req_id,'buffer':buf,'cursor_pos':cursor,'cwd':cwd,'shell':'zsh','history':history,'exit_status':exit_status}))
-" "$BUFFER" "$CURSOR" "$__AISH_REQUEST_ID" "$PWD" "$history_json" "$__AISH_LAST_EXIT" 2>/dev/null)
-    fi
-
-    __aish_request_async "$json_request" __aish_autocomplete_callback
-}
-
-# ── Debounce timer callback ─────────────────────────────────────────────────
-__aish_debounce_fire() {
-    local fd=$1
-    zle -F $fd  # Unregister
-    exec {fd}<&-
-
-    # Check minimum chars
-    if [[ ${#BUFFER} -lt $__AISH_MIN_CHARS && -n "$BUFFER" ]]; then
-        return
-    fi
-
-    __aish_send_request
-}
-
-# ── Start debounce timer ─────────────────────────────────────────────────────
-__aish_debounce() {
-    # Cancel previous timer
-    if [[ -n "$__AISH_DEBOUNCE_FD" ]]; then
-        zle -F $__AISH_DEBOUNCE_FD 2>/dev/null
-        exec {__AISH_DEBOUNCE_FD}<&- 2>/dev/null
-        __AISH_DEBOUNCE_FD=""
-    fi
-
-    # Adaptive delay
+    # Adaptive delay (ms)
     local delay=$__AISH_DELAY
-    if [[ ${#BUFFER} -ge $__AISH_DELAY_THRESHOLD ]]; then
+    if [[ ${#buf} -ge $__AISH_DELAY_THRESHOLD ]]; then
         delay=$__AISH_DELAY_SHORT
     fi
 
-    # Create a timer using a sleep subprocess with fd
-    local delay_sec=$(printf '%.3f' "$(echo "scale=3; $delay/1000" | bc)")
-    exec {__AISH_DEBOUNCE_FD}< <(sleep "$delay_sec" && echo "fire")
-    zle -F $__AISH_DEBOUNCE_FD __aish_debounce_fire
+    # Single background process: delay → build JSON → send to daemon → return response
+    exec {__AISH_PENDING_FD}< <(
+        # Debounce delay
+        sleep $(( delay / 1000.0 ))
+        # Build JSON, send to daemon, return response
+        python3 -c "
+import socket, sys, json
+buf, cursor, req_id, cwd, exit_st = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], int(sys.argv[5])
+last_cmd = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else None
+last_output = sys.argv[7] if len(sys.argv) > 7 and sys.argv[7] else None
+sock_path = sys.argv[8]
+history = []
+try:
+    import subprocess
+    h = subprocess.run(['fc', '-l', '-5'], capture_output=True, text=True, shell=False)
+except: pass
+req = {'type':'complete','request_id':req_id,'buffer':buf,'cursor_pos':cursor,'cwd':cwd,'shell':'zsh','history':history,'exit_status':exit_st}
+if last_cmd: req['last_command'] = last_cmd
+if last_output: req['last_output'] = last_output
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+try:
+    s.settimeout(10)
+    s.connect(sock_path)
+    s.sendall(json.dumps(req).encode() + b'\n')
+    data = b''
+    while True:
+        chunk = s.recv(4096)
+        if not chunk: break
+        data += chunk
+        if b'\n' in data: break
+    sys.stdout.buffer.write(data)
+    sys.stdout.buffer.flush()
+except: pass
+finally: s.close()
+" "$buf" "$cur" "$req_id" "$cwd" "$exit_st" \
+  "${__AISH_LAST_CMD:-}" "${__AISH_CAPTURED_OUTPUT:-}" "$__AISH_SOCKET" 2>/dev/null
+    )
+    zle -F $__AISH_PENDING_FD __aish_autocomplete_callback
 }
 
 # ── Prefix reuse ─────────────────────────────────────────────────────────────
@@ -218,8 +202,13 @@ __aish_self_insert() {
     # Clear existing ghost text
     __aish_clear_ghost
 
-    # Start debounce for new request
-    __aish_debounce
+    # Check minimum chars
+    if [[ ${#BUFFER} -lt $__AISH_MIN_CHARS ]]; then
+        return
+    fi
+
+    # Send async request (includes debounce delay)
+    __aish_send_autocomplete
 }
 zle -N self-insert __aish_self_insert
 
@@ -267,9 +256,9 @@ __aish_dismiss() {
 __aish_backward_delete_char() {
     __aish_clear_ghost
     zle .backward-delete-char
-    # Restart debounce if buffer still has content
+    # Restart request if buffer still has content
     if [[ ${#BUFFER} -ge $__AISH_MIN_CHARS ]]; then
-        __aish_debounce
+        __aish_send_autocomplete
     fi
 }
 zle -N backward-delete-char __aish_backward_delete_char
@@ -293,7 +282,7 @@ __aish_proactive_check() {
 
         # Run heuristic pre-filter
         if __aish_output_is_actionable "$__AISH_CAPTURED_OUTPUT" "$__AISH_LAST_EXIT"; then
-            __aish_send_request
+            __aish_send_autocomplete
         fi
     elif [[ -z "$BUFFER" && "$__AISH_LAST_EXIT" != "0" && "$__AISH_ERROR_CORRECTION" == "1" ]]; then
         __aish_send_error_correction
@@ -339,6 +328,41 @@ print(json.dumps({'type':'error_correct','failed_command':sys.argv[1],'exit_stat
 
     __aish_request_async "$json_request" __aish_error_correction_callback
 }
+
+# ── Debug: synchronous test (Ctrl+T) ────────────────────────────────────────
+__aish_debug_test() {
+    [[ -S "$__AISH_SOCKET" ]] || { zle -M "aish debug: socket not found at $__AISH_SOCKET"; return; }
+
+    local json_request
+    json_request=$(python3 -c "
+import json, sys
+print(json.dumps({'type':'complete','request_id':'debug','buffer':sys.argv[1],'cursor_pos':int(sys.argv[2]),'cwd':sys.argv[3],'shell':'zsh','history':[],'exit_status':0}))
+" "$BUFFER" "$CURSOR" "$PWD" 2>&1)
+
+    if [[ -z "$json_request" ]]; then
+        zle -M "aish debug: failed to build JSON"
+        return
+    fi
+
+    zle -M "aish debug: sending request..."
+    local response
+    response=$(__aish_request "$json_request")
+    zle -M "aish debug: response=$response"
+
+    if [[ -n "$response" ]]; then
+        local suggestion
+        suggestion=$(python3 -c "
+import json, sys
+d = json.loads(sys.argv[1])
+print(d.get('suggestion', ''))
+" "$response" 2>/dev/null)
+        if [[ -n "$suggestion" ]]; then
+            __aish_draw_ghost "$suggestion"
+        fi
+    fi
+}
+zle -N __aish_debug_test
+bindkey '^T' __aish_debug_test
 
 # ── zle-line-init: trigger proactive check when new prompt appears ───────────
 __aish_line_init() {

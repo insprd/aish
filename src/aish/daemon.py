@@ -15,6 +15,7 @@ import os
 import signal
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from aish.config import AishConfig
@@ -308,6 +309,7 @@ class AishDaemon:
                     continue
 
                 response = await self.handle_request(data)
+                logger.debug("Request: %s → %s", data.get("type"), response)
                 writer.write(json.dumps(response).encode() + b"\n")
                 await writer.drain()
         except (ConnectionResetError, BrokenPipeError):
@@ -359,9 +361,15 @@ class AishDaemon:
 
 async def _run() -> None:
     """Run the daemon."""
+    log_path = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "aish"
+    log_path.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        handlers=[
+            logging.FileHandler(log_path / "daemon.log"),
+            logging.StreamHandler(),
+        ],
     )
     daemon = AishDaemon()
 
