@@ -71,20 +71,30 @@ __ghst_clear_status() {
 typeset -g __GHST_SAVED_RPS1=""
 typeset -g __GHST_SAVED_CURSOR_SHAPE=""
 
+__ghst_cancel_mode() { zle send-break; }
+zle -N __ghst_cancel_mode
+
 __ghst_enter_mode() {
     local rps1_label="$1"
-    # Save and set RPS1 hint
     __GHST_SAVED_RPS1="${RPS1:-}"
     RPS1="%{${__GHST_C_DIM}%}${rps1_label}%{${__GHST_C_RESET}%}"
-    # Switch to bar cursor (steady)
     printf '\e[6 q' > /dev/tty
+    # Bind ESC to cancel; set short KEYTIMEOUT so arrow keys still work
+    __GHST_SAVED_ESC_BINDING=$(bindkey -L '\e' 2>/dev/null)
+    __GHST_SAVED_KEYTIMEOUT=${KEYTIMEOUT:-40}
+    KEYTIMEOUT=20
+    bindkey '\e' __ghst_cancel_mode
 }
 
 __ghst_exit_mode() {
-    # Restore RPS1
     RPS1="$__GHST_SAVED_RPS1"
-    # Restore block cursor (blinking)
     printf '\e[1 q' > /dev/tty
+    KEYTIMEOUT=$__GHST_SAVED_KEYTIMEOUT
+    if [[ -n "$__GHST_SAVED_ESC_BINDING" ]]; then
+        eval "$__GHST_SAVED_ESC_BINDING"
+    else
+        bindkey -r '\e' 2>/dev/null
+    fi
 }
 
 # Show placeholder text that disappears on first keystroke
