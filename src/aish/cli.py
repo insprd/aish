@@ -58,7 +58,7 @@ else
         rm -f "$__AISH_SOCKET" 2>/dev/null
         aish start --quiet &>/dev/null &!
     else
-        exec {{$REPLY}}<&- 2>/dev/null
+        exec {{REPLY}}<&- 2>/dev/null
     fi
 fi
 ''')

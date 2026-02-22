@@ -4,7 +4,10 @@
 # Sets up precmd/preexec hooks, auto-reload, cheat sheet (Ctrl+/)
 
 # ── Guard ────────────────────────────────────────────────────────────────────
-[[ -n "$__AISH_LOADED" ]] && return
+if [[ -n "$__AISH_LOADED" ]]; then
+    # Already loaded — skip re-init but don't return (would exit shell in eval)
+    :
+else
 typeset -g __AISH_LOADED=1
 
 # ── State variables ──────────────────────────────────────────────────────────
@@ -122,3 +125,5 @@ add-zsh-hook precmd __aish_precmd
 
 # ── Keybindings ──────────────────────────────────────────────────────────────
 bindkey '^_' __aish_cheat_sheet  # Ctrl+/
+
+fi  # end of __AISH_LOADED guard
