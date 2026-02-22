@@ -75,18 +75,18 @@ __aish_request_async() {
     local json="$1"
     local callback="$2"
 
-    # Open a coproc to the daemon
+    local fd
     if command -v socat &>/dev/null; then
-        coproc __AISH_COPROC { socat - UNIX-CONNECT:"$__AISH_SOCKET" 2>/dev/null; }
+        exec {fd}< <(echo "$json" | socat - UNIX-CONNECT:"$__AISH_SOCKET" 2>/dev/null)
     else
-        coproc __AISH_COPROC {
-            python3 -c "
-import socket, sys
+        exec {fd}< <(python3 -c "
+import socket, sys, json as J
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 try:
-    s.settimeout(5)
+    s.settimeout(10)
     s.connect('$__AISH_SOCKET')
-    s.sendall(sys.stdin.buffer.read())
+    payload = sys.argv[1].encode() + b'\n'
+    s.sendall(payload)
     data = b''
     while True:
         chunk = s.recv(4096)
@@ -94,18 +94,12 @@ try:
         data += chunk
         if b'\n' in data: break
     sys.stdout.buffer.write(data)
+    sys.stdout.buffer.flush()
 except: pass
 finally: s.close()
-" 2>/dev/null
-        }
+" "$json" 2>/dev/null)
     fi
 
-    # Send the request
-    echo "$json" >&${__AISH_COPROC[1]}
-    exec {__AISH_COPROC[1]}>&-  # Close write end
-
-    # Register fd watcher for the response
-    local fd=${__AISH_COPROC[0]}
     zle -F $fd "$callback"
 }
 

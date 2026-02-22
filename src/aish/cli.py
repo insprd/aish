@@ -36,6 +36,8 @@ def _shell_init_zsh(config: AishConfig) -> None:
     src_dir = _get_src_dir()
     shell_dir = str(Path(__file__).resolve().parent.parent.parent / "shell" / "zsh")
     socket_path = config.get_socket_path()
+    # Find the bin directory containing the aish entry point
+    bin_dir = str(Path(sys.executable).resolve().parent)
 
     print(f'''# aish — AI-powered shell plugin
 # Add to .zshrc: eval "$(aish shell-init zsh)"
@@ -43,6 +45,9 @@ def _shell_init_zsh(config: AishConfig) -> None:
 export __AISH_SRC_DIR="{src_dir}"
 export __AISH_SHELL_DIR="{shell_dir}"
 export __AISH_SOCKET="{socket_path}"
+
+# Ensure aish CLI is on PATH
+[[ ":$PATH:" != *":{bin_dir}:"* ]] && export PATH="{bin_dir}:$PATH"
 
 # Auto-start daemon if not running
 if [[ ! -S "$__AISH_SOCKET" ]]; then

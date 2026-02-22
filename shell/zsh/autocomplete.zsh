@@ -112,27 +112,38 @@ __aish_send_request() {
 
     local history_json
     history_json=$(python3 -c "
-import json
-history = '''$(__aish_get_history)'''.strip().split('\n')
-history = [h for h in history if h]
-print(json.dumps(history[-5:]))
-" 2>/dev/null)
+import json, sys
+lines = sys.argv[1].strip().split('\n')
+lines = [l for l in lines if l]
+print(json.dumps(lines[-5:]))
+" "$(__aish_get_history)" 2>/dev/null)
     [[ -z "$history_json" ]] && history_json='[]'
 
     local json_request
     if [[ -z "$BUFFER" && -n "$__AISH_CAPTURED_OUTPUT" && "$__AISH_PROACTIVE" == "1" ]]; then
         # Proactive suggestion (empty buffer with output)
-        local escaped_output
-        escaped_output=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$__AISH_CAPTURED_OUTPUT")
-        local escaped_cmd
-        escaped_cmd=$(python3 -c "import json; print(json.dumps('$__AISH_LAST_CMD'))" 2>/dev/null)
-
-        json_request="{\"type\":\"complete\",\"request_id\":\"$__AISH_REQUEST_ID\",\"buffer\":\"\",\"cursor_pos\":0,\"cwd\":\"$PWD\",\"shell\":\"zsh\",\"history\":$history_json,\"exit_status\":$__AISH_LAST_EXIT,\"last_command\":$escaped_cmd,\"last_output\":$escaped_output}"
+        json_request=$(python3 -c "
+import json, sys
+output = sys.argv[1]
+cmd = sys.argv[2]
+req_id = sys.argv[3]
+cwd = sys.argv[4]
+history = json.loads(sys.argv[5])
+exit_status = int(sys.argv[6])
+print(json.dumps({'type':'complete','request_id':req_id,'buffer':'','cursor_pos':0,'cwd':cwd,'shell':'zsh','history':history,'exit_status':exit_status,'last_command':cmd,'last_output':output}))
+" "$__AISH_CAPTURED_OUTPUT" "$__AISH_LAST_CMD" "$__AISH_REQUEST_ID" "$PWD" "$history_json" "$__AISH_LAST_EXIT" 2>/dev/null)
     else
         # Regular autocomplete
-        local escaped_buffer
-        escaped_buffer=$(python3 -c "import json; print(json.dumps('$BUFFER'))" 2>/dev/null)
-        json_request="{\"type\":\"complete\",\"request_id\":\"$__AISH_REQUEST_ID\",\"buffer\":$escaped_buffer,\"cursor_pos\":$CURSOR,\"cwd\":\"$PWD\",\"shell\":\"zsh\",\"history\":$history_json,\"exit_status\":$__AISH_LAST_EXIT}"
+        json_request=$(python3 -c "
+import json, sys
+buf = sys.argv[1]
+cursor = int(sys.argv[2])
+req_id = sys.argv[3]
+cwd = sys.argv[4]
+history = json.loads(sys.argv[5])
+exit_status = int(sys.argv[6])
+print(json.dumps({'type':'complete','request_id':req_id,'buffer':buf,'cursor_pos':cursor,'cwd':cwd,'shell':'zsh','history':history,'exit_status':exit_status}))
+" "$BUFFER" "$CURSOR" "$__AISH_REQUEST_ID" "$PWD" "$history_json" "$__AISH_LAST_EXIT" 2>/dev/null)
     fi
 
     __aish_request_async "$json_request" __aish_autocomplete_callback
@@ -320,11 +331,11 @@ except: pass
 __aish_send_error_correction() {
     [[ -S "$__AISH_SOCKET" ]] || return
 
-    local escaped_cmd escaped_stderr
-    escaped_cmd=$(python3 -c "import json; print(json.dumps('$__AISH_LAST_CMD'))" 2>/dev/null)
-    escaped_stderr=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${__AISH_CAPTURED_OUTPUT:-}" 2>/dev/null)
-
-    local json_request="{\"type\":\"error_correct\",\"failed_command\":$escaped_cmd,\"exit_status\":$__AISH_LAST_EXIT,\"stderr\":$escaped_stderr,\"cwd\":\"$PWD\",\"shell\":\"zsh\"}"
+    local json_request
+    json_request=$(python3 -c "
+import json, sys
+print(json.dumps({'type':'error_correct','failed_command':sys.argv[1],'exit_status':int(sys.argv[2]),'stderr':sys.argv[3],'cwd':sys.argv[4],'shell':'zsh'}))
+" "$__AISH_LAST_CMD" "$__AISH_LAST_EXIT" "${__AISH_CAPTURED_OUTPUT:-}" "$PWD" 2>/dev/null)
 
     __aish_request_async "$json_request" __aish_error_correction_callback
 }
