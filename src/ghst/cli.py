@@ -62,7 +62,7 @@ def _shell_init_zsh(config: GhstConfig) -> None:
     shell_dir = Path(__file__).resolve().parent / "shell"
     socket_path = config.get_socket_path()
     # Find the bin directory containing the ghst entry point
-    bin_dir = str(Path(sys.executable).resolve().parent)
+    bin_dir = str(Path(shutil.which("ghst") or sys.argv[0]).resolve().parent)
 
     ghost_esc = _ghost_color_esc(config.ui.ghost_color)
     ghost_export = f'\nexport __GHST_GHOST_ESC=$\'{ghost_esc}\'' if ghost_esc else ""
