@@ -1,4 +1,4 @@
-"""Prompt templates for all shai request types.
+"""Prompt templates for all ghst request types.
 
 All prompts instruct the LLM to return ONLY the completion/command/fix —
 no explanation, no markdown, no commentary. Empty string if unsure.

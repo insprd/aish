@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from shai.prompts import (
+from ghst.prompts import (
     autocomplete_system,
     autocomplete_user,
     error_correction_user,

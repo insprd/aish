@@ -4,38 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**shai** (AI Shell) is an LLM-powered zsh plugin that provides ghost-text autocomplete, natural language command generation, error correction, and history search — all via a background Python daemon connected to ZLE (Zsh Line Editor) over a Unix domain socket.
+**ghst** (AI Shell) is an LLM-powered zsh plugin that provides ghost-text autocomplete, natural language command generation, error correction, and history search — all via a background Python daemon connected to ZLE (Zsh Line Editor) over a Unix domain socket.
 
 ## Architecture
 
 ### Two-process design
 
 ```
-zsh (ZLE widgets)  ←──── Unix domain socket ────→  shaid (Python async daemon)
+zsh (ZLE widgets)  ←──── Unix domain socket ────→  ghstd (Python async daemon)
   autocomplete.zsh                                    daemon.py (asyncio)
   nl-command.zsh                                      llm.py (httpx)
-  shai.zsh (main)                                     context.py, safety.py, config.py
+  ghst.zsh (main)                                     context.py, safety.py, config.py
 ```
 
-The zsh side sends newline-delimited JSON requests; the daemon responds with completions. The socket lives at `$XDG_RUNTIME_DIR/shai.sock` (fallback: `/tmp/shai-$UID.sock`).
+The zsh side sends newline-delimited JSON requests; the daemon responds with completions. The socket lives at `$XDG_RUNTIME_DIR/ghst.sock` (fallback: `/tmp/ghst-$UID.sock`).
 
-Shell files are **inlined** into the `eval "$(shai shell-init zsh)"` output at init time — they are NOT sourced at runtime. This avoids path resolution issues with non-standard installs (pipx, uv tool, etc.).
+Shell files are **inlined** into the `eval "$(ghst shell-init zsh)"` output at init time — they are NOT sourced at runtime. This avoids path resolution issues with non-standard installs (pipx, uv tool, etc.).
 
 ### File layout
 
 ```
-src/shai/
+src/ghst/
   __init__.py
-  __main__.py    – python -m shai entry point
+  __main__.py    – python -m ghst entry point
   cli.py         – CLI commands (shell-init, start, stop, status, init, model, provider, etc.)
-  config.py      – ~/.config/shai/config.toml parsing, defaults, env var override
+  config.py      – ~/.config/ghst/config.toml parsing, defaults, env var override
   daemon.py      – asyncio socket server, request routing, session buffer, rate limiting, idle timeout
   llm.py         – async LLM client (OpenAI + Anthropic), circuit breaker, caching, prompt caching
   prompts.py     – system/user prompt templates for all request types
   context.py     – cwd/git/env context gathering & caching
   safety.py      – dangerous-command detection, history/output sanitization
   shell/
-    shai.zsh           – precmd/preexec hooks, history helper, auto-reload, cheat sheet
+    ghst.zsh           – precmd/preexec hooks, history helper, auto-reload, cheat sheet
     autocomplete.zsh   – ghost text via direct /dev/tty escape codes, zsocket IPC, adaptive debounce
     nl-command.zsh     – Ctrl+G natural-language widget, Ctrl+R history search, Ctrl+Z undo
 tests/
@@ -55,7 +55,7 @@ tests/
 
 \* `last_command` and `last_output` are optional fields sent only for proactive suggestions.
 
-### Configuration (`~/.config/shai/config.toml`)
+### Configuration (`~/.config/ghst/config.toml`)
 
 Key sections: `[provider]` (name, api_key, api_base_url, model, autocomplete_model) and `[ui]` (delays, hotkeys, feature toggles). Supports OpenAI and Anthropic.
 
@@ -76,13 +76,13 @@ uv run pytest -v
 
 # Lint & type-check
 uv run ruff check src/
-uv run basedpyright src/shai/
+uv run basedpyright src/ghst/
 
 # CLI commands
-uv run shai shell-init zsh    # output shell integration code
-uv run shai start             # start the daemon
-uv run shai stop              # stop the daemon
-uv run shai status            # check daemon status
+uv run ghst shell-init zsh    # output shell integration code
+uv run ghst start             # start the daemon
+uv run ghst stop              # stop the daemon
+uv run ghst status            # check daemon status
 ```
 
 ## Key Design Decisions

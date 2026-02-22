@@ -1,14 +1,14 @@
-# shai: LLM-Powered Shell Plugin
+# ghst: LLM-Powered Shell Plugin
 
 ## Overview
 
-**shai** (AI Shell) is an open source shell plugin (zsh first, then bash/fish) that adds two LLM-powered features to any modern terminal emulator (Ghostty, iTerm2, Kitty, Alacritty, WezTerm, etc.). It runs as shell scripts + a lightweight background daemon, requiring zero modifications to the terminal.
+**ghst** (AI Shell) is an open source shell plugin (zsh first, then bash/fish) that adds two LLM-powered features to any modern terminal emulator (Ghostty, iTerm2, Kitty, Alacritty, WezTerm, etc.). It runs as shell scripts + a lightweight background daemon, requiring zero modifications to the terminal.
 
 ### Features
 
 1. **Autocomplete** — As you type, the plugin suggests command completions inline (ghost text), powered by an LLM with shell context. Accept with Tab/→.
 2. **Natural Language Command Construction** — Press a hotkey to open a prompt where you describe what you want in plain English. The LLM generates the shell command and places it on your command line for review before execution.
-3. **Error Correction** — When a command fails, shai reads the error output and suggests a corrected command as ghost text on the next prompt. Accept with Tab/→ like autocomplete.
+3. **Error Correction** — When a command fails, ghst reads the error output and suggests a corrected command as ghost text on the next prompt. Accept with Tab/→ like autocomplete.
 4. **Natural Language History Search** — Semantic search over shell history using plain English. Press Ctrl+R to describe what you're looking for instead of exact substring matching.
 
 ---
@@ -25,7 +25,7 @@
 │           │                       │              │
 │           ▼                       ▼              │
 │  ┌─────────────────────────────────────────────┐ │
-│  │  shaid (background daemon)                  │ │
+│  │  ghstd (background daemon)                  │ │
 │  │  - Receives requests over Unix domain socket│ │
 │  │  - Manages LLM API calls (async, streaming) │ │
 │  │  - Caches context, handles rate limiting     │ │
@@ -57,14 +57,14 @@
   - Creates a virtualenv or uses pipx
   - Installs Python dependencies
   - Prints the shell source line to add to `.zshrc`
-- Implement `shai shell-init zsh` — a CLI subcommand that outputs the sourceable shell integration code. Users add `eval "$(shai shell-init zsh)"` to `.zshrc`. This is the single entry point that loads all ZLE widgets, hooks, and daemon auto-start logic.
+- Implement `ghst shell-init zsh` — a CLI subcommand that outputs the sourceable shell integration code. Users add `eval "$(ghst shell-init zsh)"` to `.zshrc`. This is the single entry point that loads all ZLE widgets, hooks, and daemon auto-start logic.
 - API key loading with priority order:
-  1. Environment variable (`SHAI_API_KEY`)
-  2. Config file (`~/.config/shai/config.toml`)
+  1. Environment variable (`GHST_API_KEY`)
+  2. Config file (`~/.config/ghst/config.toml`)
   3. System keychain (stretch goal)
-- Create a configuration file format (`~/.config/shai/config.toml`) for:
+- Create a configuration file format (`~/.config/ghst/config.toml`) for:
   - `provider` — "openai" or "anthropic"
-  - `api_key` — LLM provider API key (or env var `SHAI_API_KEY`)
+  - `api_key` — LLM provider API key (or env var `GHST_API_KEY`)
   - `api_base_url` — API endpoint; defaults per provider, user-configurable for any OpenAI-compatible server
   - `model` — model for NL command construction (e.g. "gpt-4o", "claude-sonnet-4-5")
   - `autocomplete_model` — separate fast model for autocomplete (e.g. "gpt-4o-mini", "claude-haiku-4-5"); defaults to `model` if not set
@@ -84,8 +84,8 @@
 
 ### Phase 2: Daemon Core
 
-- Build a Python daemon (`shaid`) that:
-  - Listens on a Unix domain socket at `$XDG_RUNTIME_DIR/shai.sock` (or `/tmp/shai-$UID.sock`)
+- Build a Python daemon (`ghstd`) that:
+  - Listens on a Unix domain socket at `$XDG_RUNTIME_DIR/ghst.sock` (or `/tmp/ghst-$UID.sock`)
   - Accepts newline-delimited JSON messages from the shell
   - Routes requests to the appropriate handler (autocomplete vs. NL command)
   - Calls the LLM API asynchronously using `asyncio` + `httpx`
@@ -133,7 +133,7 @@
     - In `preexec`: create temp file, save original fds via `exec {fd}>&1`, tee stdout+stderr to temp file via `exec > >(tee ...)  2> >(tee ... >&2)`
     - In `precmd`: restore original fds, read last `proactive_output_lines` (default 50) lines from temp file, strip ANSI escape codes, delete temp file
     - **Interactive command blocklist**: check first word of command against `proactive_capture_blocklist` config (default: vim, nvim, less, top, htop, ssh, tmux, screen, man, watch, fzf, python, node, irb). Skip capture entirely for matching commands to avoid breaking raw terminal mode.
-    - Clean up orphaned temp files on shell startup (glob `/tmp/shai-out-*.XXXXXX`)
+    - Clean up orphaned temp files on shell startup (glob `/tmp/ghst-out-*.XXXXXX`)
   - **Heuristic pre-filter** (shell-side, no daemon call):
     - Regex scan of captured output for actionable patterns: phrases like "run", "try", "use", "resume with"; backtick-quoted commands; lines starting with `$` or `>`; known tool patterns (`--set-upstream`, `audit fix`, `--resume=`); action words ("fix", "resolve", "install", "update", "upgrade")
     - Non-zero exit status always qualifies
@@ -152,8 +152,8 @@
   - Next keystroke clears `$POSTDISPLAY` and falls through to normal input
   - Purely shell-side — no daemon communication
 - **First-use hint**:
-  - On the first autocomplete suggestion after onboarding, show a one-time hint in `$POSTDISPLAY`: `"shai: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)"`
-  - Suppressed after first display by writing a `~/.config/shai/.onboarded` marker file
+  - On the first autocomplete suggestion after onboarding, show a one-time hint in `$POSTDISPLAY`: `"ghst: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)"`
+  - Suppressed after first display by writing a `~/.config/ghst/.onboarded` marker file
 - Performance considerations:
   - The adaptive debounce prevents flooding the LLM API
   - `$POSTDISPLAY` is the correct zsh mechanism for ghost text (no terminal hacks needed)
@@ -202,13 +202,13 @@
 ### Phase 4c: Natural Language History Search
 
 - Create a zsh ZLE widget bound to a configurable hotkey (default `Ctrl+R`) that:
-  - Opens an inline search prompt: `shai history> █`
+  - Opens an inline search prompt: `ghst history> █`
   - User types a natural language description of what they're looking for
   - On Enter, sends the query + full shell history to the daemon
   - Daemon uses the LLM to rank history entries by semantic relevance
   - Results displayed as a selectable list (similar to fzf):
     ```
-    shai history> docker command for postgres
+    ghst history> docker command for postgres
       → docker exec -it postgres-dev psql -U admin -d myapp
         docker run -d --name postgres-dev -e POSTGRES_PASSWORD=secret postgres:15
         docker logs postgres-dev --tail 50
@@ -228,7 +228,7 @@
   - Results are returned as a ranked list, displayed incrementally if streamed
 - Advantage over native Ctrl+R:
   - Native Ctrl+R is substring search: "postgres" finds it, but "that database command" doesn't
-  - shai replaces the binding with a semantic upgrade — same key, much smarter search
+  - ghst replaces the binding with a semantic upgrade — same key, much smarter search
 
 ### Phase 5: Context & History Enrichment
 
@@ -276,48 +276,48 @@
 - **Network resilience** (see Network Resilience Strategy section for full design):
   - **Circuit breaker**: implement CLOSED → OPEN (30s) → HALF-OPEN → CLOSED state machine in the LLM client. 3 consecutive failures trips the breaker. Separate breaker per provider.
   - **Connection health tracking**: `ConnectionHealth` class tracking `last_success_time`, `consecutive_failures`, `avg_latency_ms`, `circuit_state`. When `avg_latency > 2s`, skip proactive suggestions (too slow to be useful).
-  - **`shai status` health display**: show connection state (healthy/degraded/offline), circuit breaker state, last success time, probe countdown when OPEN
+  - **`ghst status` health display**: show connection state (healthy/degraded/offline), circuit breaker state, last success time, probe countdown when OPEN
   - Daemon auto-restarts on crash (shell wrapper checks socket liveness)
   - Rate limiting to avoid burning API credits (configurable max requests/min)
-- **`shai init`** — interactive setup wizard:
-  - Detect shell, print `eval "$(shai shell-init zsh)"` source line
+- **`ghst init`** — interactive setup wizard:
+  - Detect shell, print `eval "$(ghst shell-init zsh)"` source line
   - Prompt for provider (OpenAI / Anthropic), API key, model choices
   - **Hotkey conflict detection**: run `bindkey "^G"` to check existing bindings. If conflict found, explain existing binding, offer alternatives (`Ctrl+]`, `Ctrl+\`, `Ctrl+X Ctrl+G`). Ctrl+R override is intentional (semantic upgrade of native reverse search) and does not trigger a conflict warning.
   - Verify connection (start daemon, test completion)
-  - Write `~/.config/shai/config.toml`
-- **Config hot-reload**: implement the `reload_config` message handler in the daemon. When the CLI updates config via `shai set`/`shai model set`/`shai provider set`, it sends `{"type": "reload_config"}` over the socket. The daemon re-reads `config.toml` and updates model, provider, and all settings without restart.
+  - Write `~/.config/ghst/config.toml`
+- **Config hot-reload**: implement the `reload_config` message handler in the daemon. When the CLI updates config via `ghst set`/`ghst model set`/`ghst provider set`, it sends `{"type": "reload_config"}` over the socket. The daemon re-reads `config.toml` and updates model, provider, and all settings without restart.
 - **Full CLI command set**:
-  - `shai start` / `stop` / `status` — manage daemon
-  - `shai init` — setup wizard (re-runnable)
-  - `shai config` — open config file in `$EDITOR`
-  - `shai model` / `shai model list` / `shai model set` — view and change models
-  - `shai provider` / `shai provider set` — view and change provider
-  - `shai set <key> <value>` / `shai get <key>` / `shai reset <key>` / `shai defaults` — config management
-  - `shai history` — show recent AI interactions
-  - `shai help` / `shai help <command>` — help screens
+  - `ghst start` / `stop` / `status` — manage daemon
+  - `ghst init` — setup wizard (re-runnable)
+  - `ghst config` — open config file in `$EDITOR`
+  - `ghst model` / `ghst model list` / `ghst model set` — view and change models
+  - `ghst provider` / `ghst provider set` — view and change provider
+  - `ghst set <key> <value>` / `ghst get <key>` / `ghst reset <key>` / `ghst defaults` — config management
+  - `ghst history` — show recent AI interactions
+  - `ghst help` / `ghst help <command>` — help screens
 - **README.md**: project description, install instructions (pip/pipx/brew), usage guide, config reference, supported terminals list, privacy section documenting what data is sent to the LLM, GIF/screenshot demo
 - **CONTRIBUTING.md**: dev setup, code style, PR process, issue guidelines
 
 ### Phase 8: Homebrew Distribution
 
-- Create a Homebrew tap repository (`homebrew-shai`) containing the formula
+- Create a Homebrew tap repository (`homebrew-ghst`) containing the formula
 - Formula responsibilities:
   - Declare dependency on Python 3.8+
   - Install the Python package into a Homebrew-managed virtualenv (using `virtualenv_install_with_resources`)
-  - Symlink the `shai` CLI entry point to Homebrew's bin
+  - Symlink the `ghst` CLI entry point to Homebrew's bin
   - Install shell completion files to the appropriate Homebrew paths
 - Tap structure:
   ```
-  homebrew-shai/
+  homebrew-ghst/
   └── Formula/
-      └── shai.rb      # Homebrew formula
+      └── ghst.rb      # Homebrew formula
   ```
 - Formula auto-update:
   - GitHub Actions workflow in the main repo: on PyPI release, open a PR against the tap repo updating the version and SHA256
   - Or use `brew bump-formula-pr` in CI
 - Post-install caveats:
-  - Formula prints the `eval "$(shai shell-init zsh)"` line and `shai init` instructions via Homebrew's `caveats` block
-  - Users see this on `brew install` and `brew info shai`
+  - Formula prints the `eval "$(ghst shell-init zsh)"` line and `ghst init` instructions via Homebrew's `caveats` block
+  - Users see this on `brew install` and `brew info ghst`
 - **GitHub Actions CI** (set up before first public release):
   - `ci.yml`: on push/PR — lint (`ruff check`), type check (`mypy`), tests (`pytest`)
   - `release.yml`: on version tag — build, publish to PyPI, update Homebrew tap formula
@@ -378,7 +378,7 @@ Connect timeout is intentionally tight (1-2s). On a working connection, TCP+TLS 
 These are speculative suggestions. A retry adds latency for a suggestion that may already be stale. If the request fails, silently drop it. The user hasn't asked for anything — they won't notice the absence.
 
 **NL command / history search: 1 retry with 500ms delay.**
-The user explicitly requested these (pressed Ctrl+G or Ctrl+R) and is waiting. One fast retry covers transient blips (TCP RST, momentary packet loss). If the retry also fails, show a brief error: `shai: couldn't reach API — check your connection`.
+The user explicitly requested these (pressed Ctrl+G or Ctrl+R) and is waiting. One fast retry covers transient blips (TCP RST, momentary packet loss). If the retry also fails, show a brief error: `ghst: couldn't reach API — check your connection`.
 
 ### Circuit breaker
 
@@ -398,7 +398,7 @@ State machine:
 | State | Autocomplete | NL command | User sees |
 |---|---|---|---|
 | CLOSED | Normal | Normal | Normal ghost text |
-| OPEN | Instantly returns empty | Returns error immediately: `shai: offline (retrying in Xs)` | No ghost text, NL commands fail fast |
+| OPEN | Instantly returns empty | Returns error immediately: `ghst: offline (retrying in Xs)` | No ghost text, NL commands fail fast |
 | HALF-OPEN | 1 probe request allowed | 1 probe request allowed | If probe succeeds, back to normal |
 
 **Why 3 failures / 30s cooldown:**
@@ -433,8 +433,8 @@ class ConnectionHealth:
 |---|---|---|---|---|
 | **Normal connection** | Ghost text in 300-600ms | Ghost text in 0-300ms | Command in 1-3s | Fix in <1s |
 | **Slow connection (>2s RTT)** | Ghost text in 2-3s (may feel laggy) | Skipped (too slow to be useful) | Command in 3-5s (spinner shown) | Fix in 2-3s |
-| **Intermittent drops** | Some suggestions appear, some don't — silent | Same | Occasional `shai: couldn't reach API` — one retry covers most blips | Same as autocomplete |
-| **Fully offline** | No ghost text (circuit breaker trips after 3 failures, <5s) | No ghost text | Instant error: `shai: offline` (no wait) | No suggestion |
+| **Intermittent drops** | Some suggestions appear, some don't — silent | Same | Occasional `ghst: couldn't reach API` — one retry covers most blips | Same as autocomplete |
+| **Fully offline** | No ghost text (circuit breaker trips after 3 failures, <5s) | No ghost text | Instant error: `ghst: offline` (no wait) | No suggestion |
 | **Connection recovers** | Ghost text resumes within 30s (next circuit breaker probe) | Resumes | Works immediately on next Ctrl+G | Resumes |
 
 **Key UX principle: the shell never hangs.** Every failure path has a bounded time cost:
@@ -461,10 +461,10 @@ self.client = httpx.AsyncClient(
 )
 ```
 
-### `shai status` shows connection health
+### `ghst status` shows connection health
 
 ```
-$ shai status
+$ ghst status
   daemon:     running (pid 12345, uptime 2h)
   provider:   openai (gpt-4o-mini)
   connection: degraded — 2/5 recent requests failed, avg latency 1200ms
@@ -474,7 +474,7 @@ $ shai status
 
 Or when offline:
 ```
-$ shai status
+$ ghst status
   daemon:     running (pid 12345, uptime 2h)
   provider:   openai (gpt-4o-mini)
   connection: offline — circuit breaker OPEN
@@ -490,41 +490,41 @@ $ shai status
 
 **Option A: pipx (recommended)**
 ```bash
-pipx install shai
+pipx install ghst
 ```
-Installs in an isolated virtualenv with `shai` on PATH automatically. No virtualenv confusion.
+Installs in an isolated virtualenv with `ghst` on PATH automatically. No virtualenv confusion.
 
 **Option B: pip**
 ```bash
-pip install shai
+pip install ghst
 ```
 Fallback for users without pipx.
 
 **Option C: Homebrew**
 ```bash
-brew tap shai-shell/shai
-brew install shai
+brew tap ghst-shell/ghst
+brew install ghst
 ```
 Best experience on macOS. Manages PATH, upgrades, and Python dependency automatically.
 
 **Option D: Manual / git clone**
 ```bash
-git clone https://github.com/…/shai.git
-cd shai && ./setup.sh
+git clone https://github.com/…/ghst.git
+cd ghst && ./setup.sh
 ```
 
 `setup.sh` handles dependencies and virtualenv setup for manual installs only. For pipx/pip/brew, this is handled by the package manager.
 
-### First-run onboarding: `shai init`
+### First-run onboarding: `ghst init`
 
-After install, the user runs `shai init`, an interactive setup wizard. The CLI entry point (`bin/shai`) should also detect missing config and suggest `shai init` automatically.
+After install, the user runs `ghst init`, an interactive setup wizard. The CLI entry point (`bin/ghst`) should also detect missing config and suggest `ghst init` automatically.
 
 **Step 1: Detect shell and print source line**
 ```
 Detected: zsh
 Add this to your ~/.zshrc:
 
-  eval "$(shai shell-init zsh)"
+  eval "$(ghst shell-init zsh)"
 
 Then restart your shell or run: exec zsh
 ```
@@ -542,7 +542,7 @@ Model for commands [gpt-4o]:
 Model for autocomplete [gpt-4o-mini]:
 ```
 
-Writes `~/.config/shai/config.toml`.
+Writes `~/.config/ghst/config.toml`.
 
 **Step 3: Verify connection**
 ```
@@ -554,57 +554,57 @@ You're all set! Open a new shell and start typing.
 
   → Autocomplete appears as ghost text (accept with Tab or →)
   → Press Ctrl+G for natural language command mode
-  → Run `shai status` to check daemon health
-  → Run `shai config` to edit settings
+  → Run `ghst status` to check daemon health
+  → Run `ghst config` to edit settings
 ```
 
 ### API key handling
 
 Keys are loaded in priority order:
-1. Environment variable (`SHAI_API_KEY`) — for dotfile power users and CI
-2. Config file (`~/.config/shai/config.toml`) — primary method, set by `shai init`
+1. Environment variable (`GHST_API_KEY`) — for dotfile power users and CI
+2. Config file (`~/.config/ghst/config.toml`) — primary method, set by `ghst init`
 3. System keychain (stretch goal) — `security find-generic-password` on macOS
 
 ### First-use hint
 
 The first time autocomplete fires after onboarding, show a one-time hint:
 ```
-shai: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)
+ghst: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)
 ```
-Suppressed after first display by writing a `~/.config/shai/.onboarded` marker file.
+Suppressed after first display by writing a `~/.config/ghst/.onboarded` marker file.
 
 ### CLI commands
 
 | Command | Description |
 |---|---|
-| `shai init` | Interactive setup wizard |
-| `shai start` | Start the daemon (normally auto-started on first use) |
-| `shai stop` | Stop the daemon |
-| `shai status` | Show daemon health, connected provider, current models, uptime |
-| `shai config` | Open config file in `$EDITOR` |
-| `shai model` | Show current models for both autocomplete and NL commands |
-| `shai model list` | List available models from the configured provider (queries API) |
-| `shai model set <model>` | Set both autocomplete and NL model |
-| `shai model set --autocomplete <model>` | Set autocomplete model only |
-| `shai model set --nl <model>` | Set NL command model only |
-| `shai provider` | Show current provider and endpoint |
-| `shai provider set <name>` | Switch provider (`openai`, `anthropic`); prompts for API key as needed |
-| `shai history` | Show recent AI interactions |
-| `shai set <key> <value>` | Set any config value (e.g. `shai set autocomplete_delay_ms 500`) |
-| `shai get <key>` | Show current value of a config key |
-| `shai reset <key>` | Reset a config key to its default value |
-| `shai defaults` | Show all config keys with current and default values |
-| `shai help` | Show feature overview and all available commands |
-| `shai help <command>` | Show detailed help for a specific command |
+| `ghst init` | Interactive setup wizard |
+| `ghst start` | Start the daemon (normally auto-started on first use) |
+| `ghst stop` | Stop the daemon |
+| `ghst status` | Show daemon health, connected provider, current models, uptime |
+| `ghst config` | Open config file in `$EDITOR` |
+| `ghst model` | Show current models for both autocomplete and NL commands |
+| `ghst model list` | List available models from the configured provider (queries API) |
+| `ghst model set <model>` | Set both autocomplete and NL model |
+| `ghst model set --autocomplete <model>` | Set autocomplete model only |
+| `ghst model set --nl <model>` | Set NL command model only |
+| `ghst provider` | Show current provider and endpoint |
+| `ghst provider set <name>` | Switch provider (`openai`, `anthropic`); prompts for API key as needed |
+| `ghst history` | Show recent AI interactions |
+| `ghst set <key> <value>` | Set any config value (e.g. `ghst set autocomplete_delay_ms 500`) |
+| `ghst get <key>` | Show current value of a config key |
+| `ghst reset <key>` | Reset a config key to its default value |
+| `ghst defaults` | Show all config keys with current and default values |
+| `ghst help` | Show feature overview and all available commands |
+| `ghst help <command>` | Show detailed help for a specific command |
 
-#### `shai help`
+#### `ghst help`
 
 Full help screen showing features, shortcuts, and all available commands:
 
 ```
-$ shai help
+$ ghst help
 
-  shai — AI-powered shell plugin
+  ghst — AI-powered shell plugin
 
   Features:
     Autocomplete       Ghost text suggestions as you type (Tab/→ to accept)
@@ -614,20 +614,20 @@ $ shai help
     Cheat Sheet        Ctrl+/ → show shortcuts at the prompt
 
   Commands:
-    shai init                 Setup wizard (re-run to reconfigure)
-    shai status               Daemon health, provider, models, uptime
-    shai model [list|set]     Show, list, or change models
-    shai provider [set]       Show or change LLM provider
-    shai set <key> <value>    Change a config value
-    shai get <key>            Show a config value
-    shai reset <key>          Reset a config key to default
-    shai defaults             Show all settings with defaults
-    shai config               Edit config file in $EDITOR
-    shai start | stop         Manage daemon
-    shai history              Recent AI interactions
-    shai help [command]       This screen, or help for a command
+    ghst init                 Setup wizard (re-run to reconfigure)
+    ghst status               Daemon health, provider, models, uptime
+    ghst model [list|set]     Show, list, or change models
+    ghst provider [set]       Show or change LLM provider
+    ghst set <key> <value>    Change a config value
+    ghst get <key>            Show a config value
+    ghst reset <key>          Reset a config key to default
+    ghst defaults             Show all settings with defaults
+    ghst config               Edit config file in $EDITOR
+    ghst start | stop         Manage daemon
+    ghst history              Recent AI interactions
+    ghst help [command]       This screen, or help for a command
 
-  Run `shai help <command>` for details on any command.
+  Run `ghst help <command>` for details on any command.
 ```
 
 #### In-shell cheat sheet (Ctrl+/)
@@ -637,7 +637,7 @@ A ZLE widget bound to `Ctrl+/` that shows a quick-reference overlay in `$POSTDIS
 ```
 $ █
   ┌─────────────────────────────────────────┐
-  │  shai shortcuts                         │
+  │  ghst shortcuts                         │
   │                                         │
   │  Tab / →     Accept autocomplete        │
   │  → (word)    Accept one word            │
@@ -663,26 +663,26 @@ Three ways to change configuration, all equivalent:
 **1. CLI commands (recommended for quick changes)**
 ```bash
 # Change any setting by key
-$ shai set autocomplete_delay_ms 500
+$ ghst set autocomplete_delay_ms 500
   ✓ autocomplete_delay_ms → 500
 
-$ shai set nl_hotkey "^X"
+$ ghst set nl_hotkey "^X"
   ✓ nl_hotkey → Ctrl+X
   ⚠ Restart your shell for hotkey changes to take effect
 
-$ shai set error_correction false
+$ ghst set error_correction false
   ✓ error_correction → false
 
 # Check current value
-$ shai get autocomplete_delay_ms
+$ ghst get autocomplete_delay_ms
   autocomplete_delay_ms = 500 (default: 200)
 
 # Reset to default
-$ shai reset autocomplete_delay_ms
+$ ghst reset autocomplete_delay_ms
   ✓ autocomplete_delay_ms → 300 (default)
 
 # See everything
-$ shai defaults
+$ ghst defaults
   provider           = openai           (default: openai)
   model              = gpt-4o           (default: gpt-4o)
   autocomplete_model = gpt-4o-mini      (default: same as model)
@@ -700,31 +700,31 @@ $ shai defaults
 
 **2. Edit config file directly**
 ```bash
-$ shai config   # opens ~/.config/shai/config.toml in $EDITOR
+$ ghst config   # opens ~/.config/ghst/config.toml in $EDITOR
 ```
 
 **3. Re-run the setup wizard**
 ```bash
-$ shai init     # re-runs interactive setup, preserving existing values as defaults
+$ ghst init     # re-runs interactive setup, preserving existing values as defaults
 ```
 
-All three methods write to `~/.config/shai/config.toml`. For non-hotkey changes, the CLI sends `reload_config` to the daemon for immediate effect. Hotkey changes require a shell restart since keybindings are set at shell init time.
+All three methods write to `~/.config/ghst/config.toml`. For non-hotkey changes, the CLI sends `reload_config` to the daemon for immediate effect. Hotkey changes require a shell restart since keybindings are set at shell init time.
 
 #### Model switching UX
 
 **Quick switch from the command line:**
 ```bash
 # See what you're running
-$ shai model
+$ ghst model
   autocomplete: gpt-4o-mini (openai)
   nl-commands:  gpt-4o (openai)
 
 # Switch autocomplete to haiku
-$ shai model set --autocomplete claude-haiku
+$ ghst model set --autocomplete claude-haiku
   ✓ autocomplete model → claude-haiku
 
 # Switch provider
-$ shai provider set anthropic
+$ ghst provider set anthropic
   API key: sk-ant-••••••••••••
   ✓ provider → anthropic
   Model for commands [claude-sonnet]:
@@ -732,17 +732,17 @@ $ shai provider set anthropic
   ✓ Ready
 
 # Browse available models
-$ shai model list
+$ ghst model list
   Available models (openai):
     gpt-4o          gpt-4o-mini       gpt-4-turbo
     o1              o1-mini           o3-mini
 ```
 
 **How it works under the hood:**
-- `shai model set` and `shai provider set` update `~/.config/shai/config.toml` in place
+- `ghst model set` and `ghst provider set` update `~/.config/ghst/config.toml` in place
 - After writing config, the CLI sends a `{"type": "reload_config"}` message to the daemon over the Unix socket
 - The daemon hot-reloads the config (new model, new endpoint) without restarting — no shell restart needed
-- `shai model list` queries the provider's model list endpoint (`GET /v1/models` for OpenAI-compatible, Anthropic models API)
+- `ghst model list` queries the provider's model list endpoint (`GET /v1/models` for OpenAI-compatible, Anthropic models API)
 
 ### Hotkey defaults and conflict detection
 
@@ -750,16 +750,16 @@ $ shai model list
 
 | Hotkey | Feature | Standard meaning in zsh | Conflict risk |
 |---|---|---|---|
-| **Tab** | Accept autocomplete suggestion | Native completion | Low — shai only intercepts when ghost text is visible; otherwise falls through to native Tab completion |
+| **Tab** | Accept autocomplete suggestion | Native completion | Low — ghst only intercepts when ghost text is visible; otherwise falls through to native Tab completion |
 | **→** (right arrow) | Accept suggestion / accept word | Move cursor right | Low — only intercepted when ghost text is visible and cursor is at end of line |
 | **Ctrl+G** | NL command prompt | `send-break` (abort current input) | Medium — rarely used, but some users may rely on it |
-| **Ctrl+R** | NL history search | `reverse-search-history` (native reverse search) | Intentional override — shai is a strict semantic upgrade of native Ctrl+R. Users who want the old behavior can rebind via `history_search_hotkey` |
+| **Ctrl+R** | NL history search | `reverse-search-history` (native reverse search) | Intentional override — ghst is a strict semantic upgrade of native Ctrl+R. Users who want the old behavior can rebind via `history_search_hotkey` |
 | **Ctrl+/** | Cheat sheet | Undo (in some setups) | Low — `^_` is rarely used; overlay is dismissable with any key |
 | **Esc** | Dismiss ghost text | Vi mode prefix | Low — only clears `$POSTDISPLAY`, doesn't consume the keystroke in normal mode |
 
-#### Conflict detection during `shai init`
+#### Conflict detection during `ghst init`
 
-During `shai init`, after detecting the shell, check for conflicts:
+During `ghst init`, after detecting the shell, check for conflicts:
 
 ```
 Checking hotkey conflicts...
@@ -768,10 +768,10 @@ Checking hotkey conflicts...
     → Override? This is rarely used. [Y/n]
 
   Ctrl+R (history search): overrides native reverse-search-history ✓
-    shai provides a semantic upgrade — same key, smarter search
+    ghst provides a semantic upgrade — same key, smarter search
 
   Tab (accept suggestion): native completion preserved ✓
-    shai only intercepts when ghost text is visible
+    ghst only intercepts when ghost text is visible
 ```
 
 Implementation:
@@ -860,7 +860,7 @@ autocomplete_model = "gpt-4o-mini"  # fast model for autocomplete
 ## File Structure
 
 ```
-shai/
+ghst/
 ├── LICENSE                     # MIT License
 ├── PLAN.md
 ├── README.md                   # User-facing docs (install, usage, config)
@@ -874,9 +874,9 @@ shai/
 │       ├── bug_report.md
 │       └── feature_request.md
 ├── bin/
-│   └── shai                    # CLI entry point (start/stop/status)
+│   └── ghst                    # CLI entry point (start/stop/status)
 ├── src/
-│   └── shai/
+│   └── ghst/
 │       ├── __init__.py
 │       ├── daemon.py           # Main daemon (asyncio event loop, socket server)
 │       ├── llm.py              # LLM API client (OpenAI, Anthropic)
@@ -886,13 +886,13 @@ shai/
 │       └── config.py           # Config file parsing
 ├── shell/
 │   ├── zsh/
-│   │   ├── shai.zsh            # Main integration (source this from .zshrc)
+│   │   ├── ghst.zsh            # Main integration (source this from .zshrc)
 │   │   ├── autocomplete.zsh    # ZLE autocomplete widget
 │   │   └── nl-command.zsh      # ZLE natural language widget
 │   ├── bash/
-│   │   └── shai.bash           # Bash integration
+│   │   └── ghst.bash           # Bash integration
 │   └── fish/
-│       └── shai.fish           # Fish integration
+│       └── ghst.fish           # Fish integration
 ├── tests/
 │   ├── test_daemon.py          # Daemon unit tests
 │   ├── test_llm.py             # LLM client tests (mocked)
@@ -905,14 +905,14 @@ shai/
 
 ## Implementation Order for Claude Code
 
-1. **Phase 1 (scaffolding)** — directory structure, `pyproject.toml`, `config.py` with TOML parsing, `default.toml`, LICENSE, `shai shell-init zsh` CLI subcommand, `SHAI_API_KEY` env var support
+1. **Phase 1 (scaffolding)** — directory structure, `pyproject.toml`, `config.py` with TOML parsing, `default.toml`, LICENSE, `ghst shell-init zsh` CLI subcommand, `GHST_API_KEY` env var support
 2. **Phase 2 (daemon core)** — asyncio socket server, request routing, `llm.py` with OpenAI + Anthropic clients, streaming, connection pooling, response caching with TTL, per-request-type timeouts, retry policy (none for autocomplete, 1 for NL), all prompt templates in `prompts.py`
 3. **Phase 3 (autocomplete)** — ZLE ghost text widget with adaptive debounce, prefix reuse, request cancellation, proactive suggestions (output capture via exec fd redirection, heuristic pre-filter, interactive command blocklist, background prefetch during precmd), cheat sheet widget (Ctrl+/), first-use onboarding hint
-4. **Phase 4 (NL command)** — Ctrl+G widget, inline `shai>` prompt, partial buffer context, spinner, undo with Ctrl+Z
+4. **Phase 4 (NL command)** — Ctrl+G widget, inline `ghst>` prompt, partial buffer context, spinner, undo with Ctrl+Z
 5. **Phase 4b (error correction)** — precmd hook, stderr capture, error correction ghost text, priority over proactive suggestions
 6. **Phase 4c (NL history search)** — Ctrl+R widget (replaces native reverse search), fzf-style result list, semantic ranking, history sanitization
 7. **Phase 5 (context enrichment)** — rolling session buffer (20 cmds × 20 lines), prompt caching (OpenAI auto-cache, Anthropic explicit `cache_control`), cwd/git/env context gathering, context cache in daemon
-8. **Phase 7 (safety/polish)** — dangerous command warnings, history/output sanitization, circuit breaker (CLOSED/OPEN/HALF-OPEN), connection health tracking, `shai status` with health display, `shai init` wizard with hotkey conflict detection, config hot-reload via socket, full CLI command set (model/provider/set/get/reset/defaults/help), README.md, CONTRIBUTING.md
+8. **Phase 7 (safety/polish)** — dangerous command warnings, history/output sanitization, circuit breaker (CLOSED/OPEN/HALF-OPEN), connection health tracking, `ghst status` with health display, `ghst init` wizard with hotkey conflict detection, config hot-reload via socket, full CLI command set (model/provider/set/get/reset/defaults/help), README.md, CONTRIBUTING.md
 9. **Phase 8 (Homebrew + CI)** — Homebrew tap repo, formula, CI auto-update on release, GitHub Actions `ci.yml` (lint/typecheck/test) and `release.yml` (PyPI publish)
 10. **Phase 6b (bash/fish)** — port ZLE widgets to readline/fish keybindings
 11. **Phase 6 (local models)** — add local model support (Ollama, LM Studio, etc.) after cloud is solid
@@ -926,10 +926,10 @@ Write tests alongside each phase (tests/ directory mirrors src/). Each phase sho
 - [ ] MIT LICENSE file in repo root
 - [ ] README.md with: project description, install instructions (pip/brew/manual), usage guide, config reference, supported terminals list, GIF/screenshot demo
 - [ ] CONTRIBUTING.md with: dev setup, code style, PR process, issue guidelines
-- [ ] pyproject.toml for `pip install shai` (published to PyPI)
+- [ ] pyproject.toml for `pip install ghst` (published to PyPI)
 - [ ] GitHub Actions CI: lint (ruff), type check (mypy), tests (pytest)
 - [ ] GitHub Actions release: auto-publish to PyPI on version tag
-- [ ] Homebrew tap (`homebrew-shai`) with formula and CI auto-update on release
+- [ ] Homebrew tap (`homebrew-ghst`) with formula and CI auto-update on release
 - [ ] No terminal-specific branding — works with any modern terminal
 - [ ] API keys never logged, never committed, loaded from config file or env var only
 - [ ] All LLM calls clearly documented in privacy section of README (what data is sent, what isn't)

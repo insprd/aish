@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shai"
+name = "ghst"
 version = "0.2.0"
 description = "AI-powered shell plugin — ghost-text autocomplete, natural language commands, error correction, and history search"
 readme = "README.md"
@@ -33,10 +33,10 @@ dev = [
 ]
 
 [project.scripts]
-shai = "shai.cli:main"
+ghst = "ghst.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/shai"]
+packages = ["src/ghst"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,4 +1,4 @@
-"""Async LLM client for shai.
+"""Async LLM client for ghst.
 
 Supports OpenAI and Anthropic APIs with circuit breaker, caching,
 connection pooling, and per-request-type timeouts.
@@ -15,9 +15,9 @@ from typing import Any
 
 import httpx
 
-from shai.config import ShaiConfig
+from ghst.config import GhstConfig
 
-logger = logging.getLogger("shai.llm")
+logger = logging.getLogger("ghst.llm")
 
 
 class CircuitState(Enum):
@@ -155,7 +155,7 @@ class ResponseCache:
 class LLMClient:
     """Async LLM client supporting OpenAI and Anthropic."""
 
-    def __init__(self, config: ShaiConfig) -> None:
+    def __init__(self, config: GhstConfig) -> None:
         self.config = config
         self.health = ConnectionHealth()
         self.cache = ResponseCache()

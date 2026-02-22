@@ -1,4 +1,4 @@
-"""shai daemon — asyncio socket server.
+"""ghst daemon — asyncio socket server.
 
 Listens on a Unix domain socket, routes JSON requests to the appropriate
 handler (autocomplete, NL command, error correction, history search),
@@ -20,10 +20,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from shai.config import ShaiConfig
-from shai.context import ContextInfo
-from shai.llm import TIMEOUT_AUTOCOMPLETE, TIMEOUT_HISTORY, TIMEOUT_NL, LLMClient
-from shai.prompts import (
+from ghst.config import GhstConfig
+from ghst.context import ContextInfo
+from ghst.llm import TIMEOUT_AUTOCOMPLETE, TIMEOUT_HISTORY, TIMEOUT_NL, LLMClient
+from ghst.prompts import (
     autocomplete_system,
     autocomplete_user,
     error_correction_user,
@@ -32,9 +32,9 @@ from shai.prompts import (
     proactive_system,
     proactive_user,
 )
-from shai.safety import check_dangerous, sanitize_history, sanitize_output
+from ghst.safety import check_dangerous, sanitize_history, sanitize_output
 
-logger = logging.getLogger("shai")
+logger = logging.getLogger("ghst")
 
 RATE_LIMIT_RPM = 60  # max requests per minute to LLM
 
@@ -125,13 +125,13 @@ def _strip_code_fences(text: str) -> str:
     return m.group(1).strip() if m else text
 
 
-class ShaiDaemon:
+class GhstDaemon:
     """Main daemon process."""
 
     IDLE_TIMEOUT_SECONDS: float = 30 * 60  # 30 minutes
 
-    def __init__(self, config: ShaiConfig | None = None) -> None:
-        self.config = config or ShaiConfig.load()
+    def __init__(self, config: GhstConfig | None = None) -> None:
+        self.config = config or GhstConfig.load()
         self.llm = LLMClient(self.config)
         self.context = ContextInfo()
         self.session = SessionBuffer()
@@ -332,7 +332,7 @@ class ShaiDaemon:
     def _handle_reload_config(self) -> dict[str, Any]:
         """Reload configuration from disk."""
         try:
-            self.config = ShaiConfig.load()
+            self.config = GhstConfig.load()
             self.llm.config = self.config
             logger.info("Configuration reloaded")
             return {"type": "reload_config", "ok": True}
@@ -386,7 +386,7 @@ class ShaiDaemon:
         pid_path.write_text(str(os.getpid()))
 
         self._last_activity = asyncio.get_event_loop().time()
-        logger.info("shai daemon started (pid %d, socket %s)", os.getpid(), socket_path)
+        logger.info("ghst daemon started (pid %d, socket %s)", os.getpid(), socket_path)
 
         async with self._server:
             while True:
@@ -410,12 +410,12 @@ class ShaiDaemon:
         socket_path.unlink(missing_ok=True)
         pid_path.unlink(missing_ok=True)
 
-        logger.info("shai daemon stopped")
+        logger.info("ghst daemon stopped")
 
 
 async def _run() -> None:
     """Run the daemon."""
-    log_path = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "shai"
+    log_path = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "ghst"
     log_path.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.DEBUG,
@@ -425,7 +425,7 @@ async def _run() -> None:
             logging.StreamHandler(),
         ],
     )
-    daemon = ShaiDaemon()
+    daemon = GhstDaemon()
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -435,7 +435,7 @@ async def _run() -> None:
 
 
 def main() -> None:
-    """Entry point for `python -m shai.daemon`."""
+    """Entry point for `python -m ghst.daemon`."""
     asyncio.run(_run())
 
 

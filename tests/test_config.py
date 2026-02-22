@@ -1,4 +1,4 @@
-"""Tests for shai config parsing."""
+"""Tests for ghst config parsing."""
 
 from __future__ import annotations
 
@@ -7,19 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from shai.config import ShaiConfig, ProviderConfig
+from ghst.config import GhstConfig, ProviderConfig
 
 
 class TestDefaults:
     """Test that defaults are sensible when no config file exists."""
 
     def test_default_provider(self) -> None:
-        config = ShaiConfig()
+        config = GhstConfig()
         assert config.provider.name == "openai"
         assert config.provider.model == "gpt-4o"
 
     def test_default_autocomplete_model_falls_back(self) -> None:
-        config = ShaiConfig()
+        config = GhstConfig()
         assert config.provider.autocomplete_model == ""
         assert config.provider.effective_autocomplete_model == "gpt-4o"
 
@@ -28,7 +28,7 @@ class TestDefaults:
         assert provider.effective_autocomplete_model == "gpt-4o-mini"
 
     def test_default_ui(self) -> None:
-        config = ShaiConfig()
+        config = GhstConfig()
         assert config.ui.autocomplete_delay_ms == 200
         assert config.ui.autocomplete_delay_short_ms == 100
         assert config.ui.autocomplete_delay_threshold == 8
@@ -40,7 +40,7 @@ class TestDefaults:
         assert config.ui.proactive_output_lines == 50
 
     def test_default_blocklist(self) -> None:
-        config = ShaiConfig()
+        config = GhstConfig()
         assert "vim" in config.ui.proactive_capture_blocklist
         assert "ssh" in config.ui.proactive_capture_blocklist
         assert "fzf" in config.ui.proactive_capture_blocklist
@@ -73,7 +73,7 @@ name = "anthropic"
 api_key = "sk-ant-test"
 model = "claude-sonnet-4-5"
 """)
-        config = ShaiConfig.load(config_file)
+        config = GhstConfig.load(config_file)
         assert config.provider.name == "anthropic"
         assert config.provider.api_key == "sk-ant-test"
         assert config.provider.model == "claude-sonnet-4-5"
@@ -95,7 +95,7 @@ autocomplete_min_chars = 5
 error_correction = false
 proactive_suggestions = false
 """)
-        config = ShaiConfig.load(config_file)
+        config = GhstConfig.load(config_file)
         assert config.provider.autocomplete_model == "gpt-4o-mini"
         assert config.provider.effective_autocomplete_model == "gpt-4o-mini"
         assert config.ui.autocomplete_delay_ms == 300
@@ -104,14 +104,14 @@ proactive_suggestions = false
         assert config.ui.proactive_suggestions is False
 
     def test_load_nonexistent(self, tmp_path: Path) -> None:
-        config = ShaiConfig.load(tmp_path / "nonexistent.toml")
+        config = GhstConfig.load(tmp_path / "nonexistent.toml")
         # Should return defaults
         assert config.provider.name == "openai"
         assert config.ui.autocomplete_delay_ms == 200
 
 
 class TestEnvVarOverride:
-    """Test SHAI_API_KEY environment variable override."""
+    """Test GHST_API_KEY environment variable override."""
 
     def test_env_var_overrides_config_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -121,13 +121,13 @@ class TestEnvVarOverride:
 [provider]
 api_key = "from-file"
 """)
-        monkeypatch.setenv("SHAI_API_KEY", "from-env")
-        config = ShaiConfig.load(config_file)
+        monkeypatch.setenv("GHST_API_KEY", "from-env")
+        config = GhstConfig.load(config_file)
         assert config.provider.api_key == "from-env"
 
     def test_env_var_when_no_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SHAI_API_KEY", "from-env")
-        config = ShaiConfig.load(tmp_path / "nonexistent.toml")
+        monkeypatch.setenv("GHST_API_KEY", "from-env")
+        config = GhstConfig.load(tmp_path / "nonexistent.toml")
         assert config.provider.api_key == "from-env"
 
     def test_no_env_var_uses_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -136,8 +136,8 @@ api_key = "from-file"
 [provider]
 api_key = "from-file"
 """)
-        monkeypatch.delenv("SHAI_API_KEY", raising=False)
-        config = ShaiConfig.load(config_file)
+        monkeypatch.delenv("GHST_API_KEY", raising=False)
+        config = GhstConfig.load(config_file)
         assert config.provider.api_key == "from-file"
 
 
@@ -146,13 +146,13 @@ class TestSocketPath:
 
     def test_xdg_runtime_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("XDG_RUNTIME_DIR", "/run/user/1000")
-        config = ShaiConfig()
-        assert config.get_socket_path() == Path("/run/user/1000/shai.sock")
-        assert config.get_pid_path() == Path("/run/user/1000/shai.pid")
+        config = GhstConfig()
+        assert config.get_socket_path() == Path("/run/user/1000/ghst.sock")
+        assert config.get_pid_path() == Path("/run/user/1000/ghst.pid")
 
     def test_fallback_tmp(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
-        config = ShaiConfig()
+        config = GhstConfig()
         uid = os.getuid()
-        assert config.get_socket_path() == Path(f"/tmp/shai-{uid}.sock")
-        assert config.get_pid_path() == Path(f"/tmp/shai-{uid}.pid")
+        assert config.get_socket_path() == Path(f"/tmp/ghst-{uid}.sock")
+        assert config.get_pid_path() == Path(f"/tmp/ghst-{uid}.pid")

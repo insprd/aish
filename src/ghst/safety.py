@@ -1,4 +1,4 @@
-"""Safety checks for shai.
+"""Safety checks for ghst.
 
 Dangerous command detection and history/output sanitization before LLM calls.
 """

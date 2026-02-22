@@ -1,6 +1,6 @@
-"""Configuration parsing for shai.
+"""Configuration parsing for ghst.
 
-Loads settings from ~/.config/shai/config.toml with env var overrides.
+Loads settings from ~/.config/ghst/config.toml with env var overrides.
 """
 
 from __future__ import annotations
@@ -17,10 +17,10 @@ except ModuleNotFoundError:
 
 
 def _config_dir() -> Path:
-    """Return the shai config directory (~/.config/shai)."""
+    """Return the ghst config directory (~/.config/ghst)."""
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg) if xdg else Path.home() / ".config"
-    return base / "shai"
+    return base / "ghst"
 
 
 def _default_config_path() -> Path:
@@ -82,13 +82,13 @@ class UIConfig:
 
 
 @dataclass
-class ShaiConfig:
+class GhstConfig:
     provider: ProviderConfig = field(default_factory=ProviderConfig)
     ui: UIConfig = field(default_factory=UIConfig)
     config_path: Path = field(default_factory=_default_config_path)
 
     @classmethod
-    def load(cls, path: Path | None = None) -> ShaiConfig:
+    def load(cls, path: Path | None = None) -> GhstConfig:
         """Load config from TOML file with env var overrides."""
         config_path = path or _default_config_path()
         raw: dict[str, Any] = {}
@@ -99,7 +99,7 @@ class ShaiConfig:
         return cls._from_dict(raw, config_path)
 
     @classmethod
-    def _from_dict(cls, raw: dict[str, Any], config_path: Path) -> ShaiConfig:
+    def _from_dict(cls, raw: dict[str, Any], config_path: Path) -> GhstConfig:
         provider_raw = raw.get("provider", {})
         ui_raw = raw.get("ui", {})
 
@@ -112,7 +112,7 @@ class ShaiConfig:
         )
 
         # Env var override for API key (highest priority)
-        env_key = os.environ.get("SHAI_API_KEY")
+        env_key = os.environ.get("GHST_API_KEY")
         if env_key:
             provider.api_key = env_key
 
@@ -273,12 +273,12 @@ class ShaiConfig:
         """Return the daemon socket path."""
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
         if runtime_dir:
-            return Path(runtime_dir) / "shai.sock"
-        return Path(f"/tmp/shai-{os.getuid()}.sock")
+            return Path(runtime_dir) / "ghst.sock"
+        return Path(f"/tmp/ghst-{os.getuid()}.sock")
 
     def get_pid_path(self) -> Path:
         """Return the daemon PID file path."""
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
         if runtime_dir:
-            return Path(runtime_dir) / "shai.pid"
-        return Path(f"/tmp/shai-{os.getuid()}.pid")
+            return Path(runtime_dir) / "ghst.pid"
+        return Path(f"/tmp/ghst-{os.getuid()}.pid")

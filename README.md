@@ -1,4 +1,4 @@
-# shai — AI-powered shell plugin
+# ghst — AI-powered shell plugin
 
 LLM-powered ghost-text autocomplete, natural language commands, and semantic history search for zsh. Works with any terminal emulator that supports ANSI escapes — no terminal modifications needed.
 
@@ -11,8 +11,8 @@ LLM-powered ghost-text autocomplete, natural language commands, and semantic his
 ## Install
 
 ```bash
-uv tool install shai
-shai init
+uv tool install ghst
+ghst init
 ```
 
 The `init` wizard will configure your LLM provider, add shell integration to your `.zshrc`, start the daemon, and verify the connection. Then restart your shell:
@@ -24,15 +24,15 @@ exec zsh
 ## Development Setup
 
 ```bash
-git clone https://github.com/insprd/shai.git
-cd shai
+git clone https://github.com/insprd/ghst.git
+cd ghst
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-shai init        # configure provider + inject zshrc
+ghst init        # configure provider + inject zshrc
 exec zsh         # reload shell to activate
 ```
 
-> **Note:** In dev mode, you must activate the venv (`source .venv/bin/activate`) in each new shell for `shai` to resolve to your local checkout. Alternatively, use `uv run shai` without activating. The `eval "$(shai shell-init zsh)"` line in your `.zshrc` handles this automatically once the venv is active.
+> **Note:** In dev mode, you must activate the venv (`source .venv/bin/activate`) in each new shell for `ghst` to resolve to your local checkout. Alternatively, use `uv run ghst` without activating. The `eval "$(ghst shell-init zsh)"` line in your `.zshrc` handles this automatically once the venv is active.
 
 ## Usage
 
@@ -52,7 +52,7 @@ $ git sta‹tus --short›
 
 ```
 $ █                          # Press Ctrl+G
-shai> find python files modified this week
+ghst> find python files modified this week
 $ find . -name "*.py" -mtime -7█
 ```
 
@@ -61,7 +61,7 @@ The generated command is placed in your buffer for review — **never auto-execu
 ### History Search (Ctrl+R)
 
 ```
-shai history> that docker command for postgres
+ghst history> that docker command for postgres
   → docker exec -it postgres-dev psql -U admin -d myapp
     docker run -d --name postgres-dev -e POSTGRES_PASSWORD=secret postgres:15
 ```
@@ -72,12 +72,12 @@ Press Ctrl+/ at any time to see a quick reference of all shortcuts.
 
 ## Configuration
 
-Config file: `~/.config/shai/config.toml`
+Config file: `~/.config/ghst/config.toml`
 
 ```toml
 [provider]
 name = "openai"                         # "openai" or "anthropic"
-api_key = "sk-..."                      # Or set SHAI_API_KEY env var
+api_key = "sk-..."                      # Or set GHST_API_KEY env var
 model = "gpt-4o"                        # Model for NL commands
 autocomplete_model = "gpt-4o-mini"      # Fast model for autocomplete
 
@@ -94,17 +94,17 @@ See `config/default.toml` for all available settings.
 
 | Command | Description |
 |---|---|
-| `shai init` | Interactive setup wizard |
-| `shai start` | Start the daemon |
-| `shai stop` | Stop the daemon |
-| `shai status` | Show daemon health and config |
-| `shai shell-init zsh` | Output shell integration code |
-| `shai help` | Show all commands and shortcuts |
+| `ghst init` | Interactive setup wizard |
+| `ghst start` | Start the daemon |
+| `ghst stop` | Stop the daemon |
+| `ghst status` | Show daemon health and config |
+| `ghst shell-init zsh` | Output shell integration code |
+| `ghst help` | Show all commands and shortcuts |
 
 ## Architecture
 
 ```
-zsh (ZLE widgets)  ←── Unix domain socket ──→  shaid (Python daemon)
+zsh (ZLE widgets)  ←── Unix domain socket ──→  ghstd (Python daemon)
   autocomplete.zsh                               daemon.py (asyncio)
   nl-command.zsh                                 llm.py (httpx)
   history-search.zsh                             safety.py, config.py
@@ -114,13 +114,13 @@ The shell side sends JSON requests over a Unix socket; the daemon routes them to
 
 ## Privacy
 
-shai sends the following data to your configured LLM provider:
+ghst sends the following data to your configured LLM provider:
 
 - **Current buffer** (what you've typed so far)
 - **Current working directory**
 - **Recent shell history** (last 5-10 commands)
 
-shai does **NOT** send:
+ghst does **NOT** send:
 
 - File contents (unless they appear in terminal output)
 - Environment variables or full PATH
@@ -136,7 +136,7 @@ Planned features for future releases:
 - **Proactive Suggestions** — Read the last command's output and suggest the next command on an empty prompt
 - **Bash & Fish Support** — Extend autocomplete and NL commands beyond zsh
 - **Local Model Support** — Optimized flows for Ollama, LM Studio, and other local inference servers
-- **Homebrew Installation** — `brew install shai` via a Homebrew tap
+- **Homebrew Installation** — `brew install ghst` via a Homebrew tap
 
 ## Development
 
@@ -144,10 +144,10 @@ Planned features for future releases:
 uv run pytest              # Run tests
 uv run pytest -v           # Verbose
 uv run ruff check src/     # Lint
-uv run basedpyright src/shai/  # Type check
+uv run basedpyright src/ghst/  # Type check
 ```
 
-The daemon auto-reloads during development: every 30 commands, the shell checks if any `.py` source file is newer than the running daemon and restarts it if so. No manual `shai stop && shai start` needed after editing Python code.
+The daemon auto-reloads during development: every 30 commands, the shell checks if any `.py` source file is newer than the running daemon and restarts it if so. No manual `ghst stop && ghst start` needed after editing Python code.
 
 ## License
 

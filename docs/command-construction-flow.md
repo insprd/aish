@@ -7,13 +7,13 @@
 $ █
 
 # Prompt changes to an inline NL input
-shai> █
+ghst> █
 
 # User types their intent in plain English
-shai> find all python files larger than 1mb modified in the last week█
+ghst> find all python files larger than 1mb modified in the last week█
 
 # User presses Enter — spinner appears
-shai> find all python files larger than 1mb modified in the last week
+ghst> find all python files larger than 1mb modified in the last week
   ⠋ thinking...
 
 # Generated command replaces the prompt (highlighted briefly to show it's AI-generated)
@@ -34,10 +34,10 @@ $ find . -name "*.py" -size +1M -mtime -7█
 $ docker run -v █
 
 # Presses Ctrl+G — existing buffer is preserved as context
-shai> (docker run -v ...) mount current dir as /app and run node█
+ghst> (docker run -v ...) mount current dir as /app and run node█
 
 # Enter → thinking...
-shai> (docker run -v ...) mount current dir as /app and run node
+ghst> (docker run -v ...) mount current dir as /app and run node
   ⠋ thinking...
 
 # LLM sees both the partial command AND the natural language description
@@ -53,7 +53,7 @@ $ awk '{print $3}' access.log | sort | uniq -c | sort -rn | head -20█
 
 # User thinks "close but I want IPs only from today"
 # Presses Ctrl+G again
-shai> (awk '{print $3}' ...) only include lines from today's date█
+ghst> (awk '{print $3}' ...) only include lines from today's date█
 
 # LLM refines the existing command:
 $ grep "$(date +%d/%b/%Y)" access.log | awk '{print $3}' | sort | uniq -c | sort -rn | head -20█
@@ -66,8 +66,8 @@ Keystroke (Ctrl+G)
   │
   ▼
 ZLE widget activates
-  ├── Saves current $BUFFER to $SHAI_SAVED_BUFFER
-  ├── Replaces prompt with "shai> "
+  ├── Saves current $BUFFER to $GHST_SAVED_BUFFER
+  ├── Replaces prompt with "ghst> "
   ├── If buffer had content, shows it as "(partial cmd...) " prefix
   └── Enters recursive-edit mode for NL input
         │
@@ -109,7 +109,7 @@ ZLE widget activates
 | Decision | Choice | Why |
 |---|---|---|
 | Never auto-execute | Always | Safety — user must press Enter to run |
-| Inline prompt vs popup | Inline (`shai>` replaces `$`) | Stays in flow, no mode switch |
+| Inline prompt vs popup | Inline (`ghst>` replaces `$`) | Stays in flow, no mode switch |
 | Partial buffer handling | Send as context to LLM | User's partial typing is valuable signal |
 | Ctrl+Z undo | Restore original `$BUFFER` | Easy to bail out |
 | Timeout | 15s total (2s connect + 12s read) | NL commands are more complex, user expects a pause |
@@ -121,8 +121,8 @@ ZLE widget activates
 
 - **Empty NL input** (user presses Ctrl+G then Enter with no text) → cancel, restore buffer
 - **LLM returns empty** (unsure/unsafe) → show "Couldn't generate a command" briefly, restore buffer
-- **Daemon unreachable** → show "shai: daemon not running, start with `shai start`", restore buffer
-- **Timeout** → show "shai: timed out", restore buffer
-- **Network failure** → 1 retry with 500ms delay. If both attempts fail, show "shai: couldn't reach API — check your connection", restore buffer
-- **Circuit breaker open (offline)** → instant error: "shai: offline", restore buffer. No network call, no wait.
+- **Daemon unreachable** → show "ghst: daemon not running, start with `ghst start`", restore buffer
+- **Timeout** → show "ghst: timed out", restore buffer
+- **Network failure** → 1 retry with 500ms delay. If both attempts fail, show "ghst: couldn't reach API — check your connection", restore buffer
+- **Circuit breaker open (offline)** → instant error: "ghst: offline", restore buffer. No network call, no wait.
 - **Dangerous command detected** → still place it in buffer but prepend a `⚠️` warning in `$POSTDISPLAY`: `"⚠️ This command modifies system files. Review carefully."`

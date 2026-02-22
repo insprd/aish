@@ -1,40 +1,40 @@
-# shai.zsh — Main shell integration
-# Loaded via: eval "$(shai shell-init zsh)"
+# ghst.zsh — Main shell integration
+# Loaded via: eval "$(ghst shell-init zsh)"
 #
 # Sets up precmd/preexec hooks, auto-reload, cheat sheet (Ctrl+/)
 
 # ── Guard ────────────────────────────────────────────────────────────────────
-if [[ -n "$__SHAI_LOADED" ]]; then
+if [[ -n "$__GHST_LOADED" ]]; then
     # Already loaded — skip re-init but don't return (would exit shell in eval)
     :
 else
-typeset -g __SHAI_LOADED=1
+typeset -g __GHST_LOADED=1
 
 # ── State variables ──────────────────────────────────────────────────────────
-typeset -g __SHAI_LAST_EXIT=0
-typeset -g __SHAI_LAST_CMD=""
-typeset -g __SHAI_CMD_COUNT=0
+typeset -g __GHST_LAST_EXIT=0
+typeset -g __GHST_LAST_CMD=""
+typeset -g __GHST_CMD_COUNT=0
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 # Get recent history entries (one per line)
-__shai_get_history() {
+__ghst_get_history() {
     fc -l -50 -1 2>/dev/null | sed 's/^[[:space:]]*[0-9]*[[:space:]]*//'
 }
 
 # Send a JSON request to the daemon and print the response
-__shai_request() {
+__ghst_request() {
     local json="$1"
     # Use socat if available, fall back to zsh /dev/tcp or python
     if command -v socat &>/dev/null; then
-        echo "$json" | socat - UNIX-CONNECT:"$__SHAI_SOCKET" 2>/dev/null
+        echo "$json" | socat - UNIX-CONNECT:"$__GHST_SOCKET" 2>/dev/null
     else
         python3 -c "
 import socket, sys
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 try:
     s.settimeout(5)
-    s.connect('$__SHAI_SOCKET')
+    s.connect('$__GHST_SOCKET')
     s.sendall(sys.stdin.buffer.read())
     data = b''
     while True:
@@ -50,47 +50,47 @@ finally: s.close()
 }
 
 # ── preexec hook — record last command ────────────────────────────────────────
-__shai_preexec() {
-    __SHAI_LAST_CMD="$1"
+__ghst_preexec() {
+    __GHST_LAST_CMD="$1"
 }
 
 # ── precmd hook — record exit status ─────────────────────────────────────────
-__shai_precmd() {
-    __SHAI_LAST_EXIT=$?
+__ghst_precmd() {
+    __GHST_LAST_EXIT=$?
 
     # Auto-reload check (every 30 commands)
-    (( __SHAI_CMD_COUNT++ ))
-    if (( __SHAI_CMD_COUNT % 30 == 0 )) && [[ -n "$__SHAI_SRC_DIR" ]]; then
-        __shai_check_reload
+    (( __GHST_CMD_COUNT++ ))
+    if (( __GHST_CMD_COUNT % 30 == 0 )) && [[ -n "$__GHST_SRC_DIR" ]]; then
+        __ghst_check_reload
     fi
 }
 
 # ── Auto-reload ──────────────────────────────────────────────────────────────
-__shai_check_reload() {
+__ghst_check_reload() {
     local pid_file
     # Find PID file
     if [[ -n "$XDG_RUNTIME_DIR" ]]; then
-        pid_file="$XDG_RUNTIME_DIR/shai.pid"
+        pid_file="$XDG_RUNTIME_DIR/ghst.pid"
     else
-        pid_file="/tmp/shai-$(id -u).pid"
+        pid_file="/tmp/ghst-$(id -u).pid"
     fi
 
     [[ -f "$pid_file" ]] || return
 
     # Check if any .py file is newer than PID file
     local newer
-    newer=$(find "$__SHAI_SRC_DIR" -name '*.py' -newer "$pid_file" -print -quit 2>/dev/null)
+    newer=$(find "$__GHST_SRC_DIR" -name '*.py' -newer "$pid_file" -print -quit 2>/dev/null)
     if [[ -n "$newer" ]]; then
-        shai stop &>/dev/null
-        shai start --quiet &>/dev/null
+        ghst stop &>/dev/null
+        ghst start --quiet &>/dev/null
     fi
 }
 
 # ── Cheat sheet widget (Ctrl+/) ─────────────────────────────────────────────
-__shai_cheat_sheet() {
+__ghst_cheat_sheet() {
     POSTDISPLAY=$'\n'"$(cat <<'EOF'
   ┌─────────────────────────────────────────┐
-  │  shai shortcuts                         │
+  │  ghst shortcuts                         │
   │                                         │
   │  Tab / →     Accept autocomplete        │
   │  → (word)    Accept one word            │
@@ -116,14 +116,14 @@ EOF
         zle -U "$key"
     fi
 }
-zle -N __shai_cheat_sheet
+zle -N __ghst_cheat_sheet
 
 # ── Register hooks ───────────────────────────────────────────────────────────
 autoload -Uz add-zsh-hook
-add-zsh-hook preexec __shai_preexec
-add-zsh-hook precmd __shai_precmd
+add-zsh-hook preexec __ghst_preexec
+add-zsh-hook precmd __ghst_precmd
 
 # ── Keybindings ──────────────────────────────────────────────────────────────
-bindkey '^_' __shai_cheat_sheet  # Ctrl+/
+bindkey '^_' __ghst_cheat_sheet  # Ctrl+/
 
-fi  # end of __SHAI_LOADED guard
+fi  # end of __GHST_LOADED guard

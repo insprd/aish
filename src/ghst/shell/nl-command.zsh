@@ -4,17 +4,17 @@
 # The LLM generates a shell command and places it in the buffer for review.
 
 # ── Undo state ──────────────────────────────────────────────────────────────
-typeset -g __SHAI_SAVED_BUFFER=""
-typeset -gi __SHAI_SAVED_CURSOR=0
+typeset -g __GHST_SAVED_BUFFER=""
+typeset -gi __GHST_SAVED_CURSOR=0
 
 # ── NL Command Widget ───────────────────────────────────────────────────────
-__shai_nl_command() {
+__ghst_nl_command() {
     # Save current buffer for undo
     local saved_buffer="$BUFFER"
     local saved_cursor=$CURSOR
 
     # Clear any ghost text
-    __shai_clear_suggestion 2>/dev/null
+    __ghst_clear_suggestion 2>/dev/null
 
     # Show context hint if buffer has content
     local context_hint=""
@@ -26,7 +26,7 @@ __shai_nl_command() {
 
     # Use recursive-edit for full line editing (arrow keys, Ctrl+A/E, etc.)
     local orig_prompt="$PROMPT"
-    PROMPT="shai> ${context_hint}"
+    PROMPT="ghst> ${context_hint}"
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
@@ -54,7 +54,7 @@ __shai_nl_command() {
     local history_json
     history_json=$(python3 -c "
 import json
-history = '''$(__shai_get_history)'''.strip().split('\n')
+history = '''$(__ghst_get_history)'''.strip().split('\n')
 history = [h for h in history if h]
 print(json.dumps(history[-10:]))
 " 2>/dev/null)
@@ -68,7 +68,7 @@ print(json.dumps(history[-10:]))
 
     # Send synchronous request (user is waiting)
     local response
-    response=$(__shai_request "$json_request")
+    response=$(__ghst_request "$json_request")
 
     # Clear spinner
     POSTDISPLAY=""
@@ -76,7 +76,7 @@ print(json.dumps(history[-10:]))
     if [[ -z "$response" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n  shai: couldn'\''t reach daemon — run '\''shai start'\'''
+        POSTDISPLAY=$'\n  ghst: couldn'\''t reach daemon — run '\''ghst start'\'''
         zle reset-prompt
         return
     fi
@@ -102,14 +102,14 @@ except: pass
     if [[ -z "$command" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n  shai: couldn'\''t generate a command'
+        POSTDISPLAY=$'\n  ghst: couldn'\''t generate a command'
         zle reset-prompt
         return
     fi
 
     # Save for undo (Ctrl+Z)
-    __SHAI_SAVED_BUFFER="$saved_buffer"
-    __SHAI_SAVED_CURSOR=$saved_cursor
+    __GHST_SAVED_BUFFER="$saved_buffer"
+    __GHST_SAVED_CURSOR=$saved_cursor
 
     # Place generated command in buffer
     BUFFER="$command"
@@ -122,19 +122,19 @@ except: pass
 
     zle reset-prompt
 }
-zle -N __shai_nl_command
+zle -N __ghst_nl_command
 
 # ── History Search Widget (Ctrl+R) ──────────────────────────────────────────
-__shai_history_search() {
+__ghst_history_search() {
     local saved_buffer="$BUFFER"
     local saved_cursor=$CURSOR
 
     # Clear ghost text
-    __shai_clear_suggestion 2>/dev/null
+    __ghst_clear_suggestion 2>/dev/null
 
     # Use recursive-edit for search query input
     local orig_prompt="$PROMPT"
-    PROMPT="shai history> "
+    PROMPT="ghst history> "
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
@@ -163,7 +163,7 @@ __shai_history_search() {
 import json
 history = []
 seen = set()
-lines = '''$(__shai_get_history)'''.strip().split('\n')
+lines = '''$(__ghst_get_history)'''.strip().split('\n')
 for l in lines:
     l = l.strip()
     if l and l not in seen:
@@ -179,14 +179,14 @@ print(json.dumps(history[-500:]))
     local json_request="{\"type\":\"history_search\",\"query\":$escaped_query,\"history\":$history_json,\"shell\":\"zsh\"}"
 
     local response
-    response=$(__shai_request "$json_request")
+    response=$(__ghst_request "$json_request")
 
     POSTDISPLAY=""
 
     if [[ -z "$response" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n  shai: couldn'\''t reach daemon'
+        POSTDISPLAY=$'\n  ghst: couldn'\''t reach daemon'
         zle reset-prompt
         return
     fi
@@ -205,35 +205,35 @@ except: pass
 " <<< "$response")
 
     if [[ -n "$first_cmd" ]]; then
-        __SHAI_SAVED_BUFFER="$saved_buffer"
-        __SHAI_SAVED_CURSOR=$saved_cursor
+        __GHST_SAVED_BUFFER="$saved_buffer"
+        __GHST_SAVED_CURSOR=$saved_cursor
         BUFFER="$first_cmd"
         CURSOR=${#BUFFER}
     else
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n  shai: no matching history found'
+        POSTDISPLAY=$'\n  ghst: no matching history found'
     fi
 
     zle reset-prompt
 }
-zle -N __shai_history_search
+zle -N __ghst_history_search
 
 # ── Undo: restore original buffer before NL/history ─────────────────────────
-__shai_nl_undo() {
-    if [[ -n "$__SHAI_SAVED_BUFFER" ]]; then
-        BUFFER="$__SHAI_SAVED_BUFFER"
-        CURSOR=$__SHAI_SAVED_CURSOR
-        __SHAI_SAVED_BUFFER=""
+__ghst_nl_undo() {
+    if [[ -n "$__GHST_SAVED_BUFFER" ]]; then
+        BUFFER="$__GHST_SAVED_BUFFER"
+        CURSOR=$__GHST_SAVED_CURSOR
+        __GHST_SAVED_BUFFER=""
         POSTDISPLAY=""
         zle reset-prompt
     else
         zle undo
     fi
 }
-zle -N __shai_nl_undo
+zle -N __ghst_nl_undo
 
 # ── Keybindings ──────────────────────────────────────────────────────────────
-bindkey '^G' __shai_nl_command        # Ctrl+G — NL command
-bindkey '^R' __shai_history_search    # Ctrl+R — History search
-bindkey '^Z' __shai_nl_undo           # Ctrl+Z — Undo NL command
+bindkey '^G' __ghst_nl_command        # Ctrl+G — NL command
+bindkey '^R' __ghst_history_search    # Ctrl+R — History search
+bindkey '^Z' __ghst_nl_undo           # Ctrl+Z — Undo NL command
