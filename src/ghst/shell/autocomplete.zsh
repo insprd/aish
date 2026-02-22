@@ -11,10 +11,11 @@ typeset -gi __GHST_GHOST_VISIBLE=0
 typeset -g __GHST_RESPONSE_FD=""
 
 # ── Configuration ────────────────────────────────────────────────────────────
-typeset -gi __GHST_DELAY=${__GHST_DELAY:-200}
-typeset -gi __GHST_DELAY_SHORT=${__GHST_DELAY_SHORT:-100}
+typeset -gi __GHST_DELAY=${__GHST_DELAY:-100}
+typeset -gi __GHST_DELAY_SHORT=${__GHST_DELAY_SHORT:-50}
 typeset -gi __GHST_DELAY_THRESHOLD=${__GHST_DELAY_THRESHOLD:-8}
-typeset -gi __GHST_MIN_CHARS=${__GHST_MIN_CHARS:-3}
+typeset -gi __GHST_MIN_CHARS=${__GHST_MIN_CHARS:-2}
+typeset -g  __GHST_GHOST_ESC=${__GHST_GHOST_ESC:-$'\e[38;5;243m'}
 
 # ── Erase ghost text from terminal ───────────────────────────────────────────
 __ghst_erase_ghost() {
@@ -27,9 +28,10 @@ __ghst_erase_ghost() {
 # ── Draw ghost text at cursor position ───────────────────────────────────────
 __ghst_draw_ghost() {
     if [[ -n "$__GHST_SUGGESTION" ]]; then
-        local len=${#__GHST_SUGGESTION}
-        # Print gray text, then move cursor back
-        echo -n $'\e[90m'"${__GHST_SUGGESTION}"$'\e[0m\e['"${len}"'D' > /dev/tty
+        # Save cursor, print gray text, restore cursor
+        # Uses 256-color 243 instead of \e[90m (bright black) which is
+        # theme-dependent and invisible in some terminals (e.g. Ghostty)
+        echo -n $'\e7'"${__GHST_GHOST_ESC}${__GHST_SUGGESTION}"$'\e[0m\e8' > /dev/tty
         __GHST_GHOST_VISIBLE=1
     fi
 }
@@ -125,6 +127,7 @@ __ghst_on_response() {
 
     __GHST_SUGGESTION="$suggestion"
     __GHST_LAST_BUFFER="$__GHST_PENDING_BUFFER"
+    zle -R
     __ghst_draw_ghost
 }
 

@@ -57,6 +57,23 @@ class TestDaemonIntegration:
             assert result["request_id"] == "test-1"
 
     @pytest.mark.asyncio
+    async def test_complete_fim_suffix(self, daemon: GhstDaemon) -> None:
+        """Test that FIM-style LLM responses are used as-is (suffix mode)."""
+        mock_return = " homebrew/cask"
+        with patch.object(
+            daemon.llm, "complete", new_callable=AsyncMock, return_value=mock_return
+        ):
+            result = await daemon.handle_request({
+                "type": "complete",
+                "buffer": "brew tap",
+                "cwd": "/tmp",
+                "shell": "zsh",
+                "history": [],
+                "request_id": "test-2",
+            })
+            assert result["suggestion"] == " homebrew/cask"
+
+    @pytest.mark.asyncio
     async def test_daemon_handles_nl_request(self, daemon: GhstDaemon) -> None:
         mock_return = "find . -name '*.py'"
         with patch.object(

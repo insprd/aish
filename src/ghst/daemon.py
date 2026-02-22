@@ -24,6 +24,7 @@ from ghst.config import GhstConfig
 from ghst.context import ContextInfo
 from ghst.llm import TIMEOUT_AUTOCOMPLETE, TIMEOUT_HISTORY, TIMEOUT_NL, LLMClient
 from ghst.prompts import (
+    COMMAND_SYSTEM,
     autocomplete_system,
     autocomplete_user,
     error_correction_user,
@@ -97,17 +98,13 @@ class SessionBuffer:
 
 
 def _ensure_leading_space(buffer: str, suggestion: str) -> str:
-    """Ensure the suggestion has a leading space if needed.
-
-    Prevents LLM completions from merging into the buffer
-    (e.g. 'ffmpeg' + '-i' → 'ffmpeg -i' not 'ffmpeg-i').
-    """
+    """Fallback: add a space before unambiguous new-token characters."""
     if not suggestion or not buffer:
         return suggestion
     if (
         not buffer[-1].isspace()
         and not suggestion[0].isspace()
-        and suggestion[0] in "-|>&;<()"
+        and suggestion[0] in "-|>&;<()\"'"
     ):
         return " " + suggestion
     return suggestion
@@ -138,6 +135,7 @@ class GhstDaemon:
         self._server: asyncio.AbstractServer | None = None
         self._last_activity: float = 0.0
         self._rate_limiter = RateLimiter()
+        self._inflight_complete: asyncio.Task[dict[str, Any]] | None = None
 
     async def handle_request(self, data: dict[str, Any]) -> dict[str, Any]:
         """Route a request to the appropriate handler."""
@@ -145,7 +143,23 @@ class GhstDaemon:
         req_type = data.get("type", "")
         try:
             if req_type == "complete":
-                return await self._handle_complete(data)
+                # Cancel stale in-flight autocomplete to free up resources
+                if self._inflight_complete and not self._inflight_complete.done():
+                    self._inflight_complete.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await self._inflight_complete
+                self._inflight_complete = asyncio.create_task(
+                    self._handle_complete(data)
+                )
+                try:
+                    return await self._inflight_complete
+                except asyncio.CancelledError:
+                    logger.debug("Autocomplete cancelled by newer request")
+                    return {
+                        "type": "complete",
+                        "request_id": data.get("request_id", ""),
+                        "suggestion": "",
+                    }
             elif req_type == "nl":
                 return await self._handle_nl(data)
             elif req_type == "error_correct":
@@ -216,7 +230,7 @@ class GhstDaemon:
                 messages, model=model, timeout=TIMEOUT_AUTOCOMPLETE,
                 use_cache_key=cache_key,
             )
-            # Post-process: ensure leading space
+            # FIM post-process: ensure leading space for special chars
             suggestion = _ensure_leading_space(buffer, suggestion)
 
         # Strip trailing whitespace but preserve leading
@@ -224,6 +238,7 @@ class GhstDaemon:
 
         # Strip markdown code fences
         suggestion = _strip_code_fences(suggestion)
+
         # Reject multiline suggestions for autocomplete
         if "\n" in suggestion:
             suggestion = suggestion.split("\n")[0].rstrip()
@@ -254,7 +269,7 @@ class GhstDaemon:
             return {"type": "nl", "command": ""}
 
         messages = [
-            {"role": "system", "content": autocomplete_system()},
+            {"role": "system", "content": COMMAND_SYSTEM},
             {"role": "user", "content": nl_command_user(
                 prompt=prompt, cwd=cwd, buffer=buffer,
                 history=history, shell=shell,
@@ -286,7 +301,7 @@ class GhstDaemon:
             return {"type": "error_correct", "suggestion": ""}
 
         messages = [
-            {"role": "system", "content": autocomplete_system()},
+            {"role": "system", "content": COMMAND_SYSTEM},
             {"role": "user", "content": error_correction_user(
                 failed_command=failed_command, exit_status=exit_status,
                 stderr=stderr, cwd=cwd, shell=shell,
@@ -309,7 +324,7 @@ class GhstDaemon:
             return {"type": "history_search", "results": []}
 
         messages = [
-            {"role": "system", "content": autocomplete_system()},
+            {"role": "system", "content": COMMAND_SYSTEM},
             {"role": "user", "content": history_search_user(
                 query=query, history=history, shell=shell,
             )},

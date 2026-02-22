@@ -62,7 +62,7 @@ class TestSetGetReset:
         with patch("ghst.cli.GhstConfig.load", return_value=config):
             main(["get", "autocomplete_delay_ms"])
         captured = capsys.readouterr()  # type: ignore[attr-defined]
-        assert "200" in captured.out
+        assert "100" in captured.out
 
     def test_get_unknown_key(self, tmp_path: Path) -> None:
         config = GhstConfig()
@@ -102,7 +102,7 @@ class TestSetGetReset:
             patch("ghst.cli._send_reload"),
         ):
             main(["reset", "autocomplete_delay_ms"])
-        assert config.ui.autocomplete_delay_ms == 200
+        assert config.ui.autocomplete_delay_ms == 100
 
     def test_defaults(self, capsys: object, tmp_path: Path) -> None:
         config = GhstConfig()

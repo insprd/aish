@@ -17,7 +17,7 @@ class TestAutocomplete:
     def test_system_prompt_contains_rules(self) -> None:
         prompt = autocomplete_system()
         assert "ONLY" in prompt
-        assert "empty string" in prompt
+        assert "nothing" in prompt.lower()
 
     def test_user_prompt_includes_buffer(self) -> None:
         prompt = autocomplete_user(buffer="git sta", cwd="/home/user", history=["cd project"])
