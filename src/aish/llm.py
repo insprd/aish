@@ -290,6 +290,7 @@ class LLMClient:
             headers={
                 "x-api-key": self.config.provider.api_key,
                 "anthropic-version": "2023-06-01",
+                "anthropic-beta": "prompt-caching-2024-07-31",
                 "Content-Type": "application/json",
             },
             timeout=timeout,

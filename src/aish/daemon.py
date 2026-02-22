@@ -12,6 +12,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import signal
 from collections import deque
 from dataclasses import dataclass, field
@@ -83,17 +84,25 @@ def _ensure_leading_space(buffer: str, suggestion: str) -> str:
     """
     if not suggestion or not buffer:
         return suggestion
-
-    # If buffer ends with a word char and suggestion starts with a word char,
-    # add a space
     if (
-        buffer[-1].isalnum() or buffer[-1] in ("_", "-")
-    ) and (
-        suggestion[0].isalnum() or suggestion[0] in ("-", "(", "[", "{", "<")
+        not buffer[-1].isspace()
+        and not suggestion[0].isspace()
+        and suggestion[0] in "-|>&;<()"
     ):
         return " " + suggestion
-
     return suggestion
+
+
+_FENCE_RE: re.Pattern[str] | None = None
+
+
+def _strip_code_fences(text: str) -> str:
+    """Remove markdown code fences that LLMs sometimes wrap responses in."""
+    global _FENCE_RE
+    if _FENCE_RE is None:
+        _FENCE_RE = re.compile(r"^```(?:\w*)\n?(.*?)```$", re.DOTALL)
+    m = _FENCE_RE.match(text.strip())
+    return m.group(1).strip() if m else text
 
 
 class AishDaemon:
@@ -163,10 +172,12 @@ class AishDaemon:
             )
         else:
             # Regular autocomplete
+            exit_status = data.get("exit_status", 0)
             messages = [
                 {"role": "system", "content": autocomplete_system()},
                 {"role": "user", "content": autocomplete_user(
                     buffer=buffer, cwd=cwd, history=history, shell=shell,
+                    exit_status=exit_status,
                 )},
             ]
             cache_key = ("autocomplete", buffer, cwd)
@@ -181,10 +192,8 @@ class AishDaemon:
         # Strip trailing whitespace but preserve leading
         suggestion = suggestion.rstrip()
 
-        # Strip markdown artifacts
-        if suggestion.startswith("```"):
-            suggestion = ""
-        suggestion = suggestion.replace("`", "")
+        # Strip markdown code fences
+        suggestion = _strip_code_fences(suggestion)
         # Reject multiline suggestions for autocomplete
         if "\n" in suggestion:
             suggestion = suggestion.split("\n")[0].rstrip()

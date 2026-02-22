@@ -43,6 +43,7 @@ def autocomplete_user(
     cwd: str,
     history: list[str],
     shell: str = "zsh",
+    exit_status: int = 0,
 ) -> str:
     hist_text = "\n".join(history[-5:]) if history else "(none)"
     return f"""\
@@ -50,10 +51,13 @@ Shell: {shell}
 Working directory: {cwd}
 Recent commands:
 {hist_text}
+Last exit status: {exit_status}
 
 The user has typed: {buffer!r}
-Return ONLY the completion suffix (the text that should appear after what's already typed).
-If the buffer looks complete or you're unsure, return an empty string."""
+Return ONLY the completion suffix — the exact text to append directly after what they typed.
+Include a leading space if one is needed (e.g. to separate a command from its arguments).
+Do not repeat what they already typed.
+Return empty string if no useful completion exists."""
 
 
 def proactive_system(session_buffer: str = "") -> str:

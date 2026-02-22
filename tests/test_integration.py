@@ -52,8 +52,8 @@ class TestDaemonIntegration:
                 "request_id": "test-1",
             })
             assert result["type"] == "complete"
-            # _ensure_leading_space adds space
-            assert result["suggestion"] == " tus --short"
+            # LLM returned a word continuation, no space needed
+            assert result["suggestion"] == "tus --short"
             assert result["request_id"] == "test-1"
 
     @pytest.mark.asyncio

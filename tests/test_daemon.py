@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from aish.config import AishConfig
-from aish.daemon import AishDaemon, SessionBuffer, _ensure_leading_space
+from aish.daemon import AishDaemon, SessionBuffer, _ensure_leading_space, _strip_code_fences
 
 
 class TestEnsureLeadingSpace:
@@ -29,8 +29,22 @@ class TestEnsureLeadingSpace:
         assert _ensure_leading_space("grep foo ", "| wc -l") == "| wc -l"
 
     def test_pipe_no_space(self) -> None:
-        # `|` is not in the trigger list, so no space added
-        assert _ensure_leading_space("grep foo", "| wc -l") == "| wc -l"
+        # `|` is in the trigger list, so space added
+        assert _ensure_leading_space("grep foo", "| wc -l") == " | wc -l"
+
+
+class TestStripCodeFences:
+    def test_plain_text_unchanged(self) -> None:
+        assert _strip_code_fences("hello world") == "hello world"
+
+    def test_strips_fenced_block(self) -> None:
+        assert _strip_code_fences("```\nls -la\n```") == "ls -la"
+
+    def test_strips_fenced_with_language(self) -> None:
+        assert _strip_code_fences("```bash\nls -la\n```") == "ls -la"
+
+    def test_strips_surrounding_whitespace(self) -> None:
+        assert _strip_code_fences("  ```\nls -la\n```  ") == "ls -la"
 
 
 class TestSessionBuffer:
