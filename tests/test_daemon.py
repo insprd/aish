@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from shai.config import AishConfig
+from shai.config import ShaiConfig
 from shai.daemon import (
-    AishDaemon,
+    ShaiDaemon,
     RateLimiter,
     SessionBuffer,
     _ensure_leading_space,
@@ -96,22 +96,22 @@ class TestDaemonRequestHandling:
     """Test daemon request routing with mocked LLM."""
 
     @pytest.fixture
-    def daemon(self) -> AishDaemon:
-        config = AishConfig()
-        return AishDaemon(config)
+    def daemon(self) -> ShaiDaemon:
+        config = ShaiConfig()
+        return ShaiDaemon(config)
 
     @pytest.mark.asyncio
-    async def test_reload_config(self, daemon: AishDaemon) -> None:
+    async def test_reload_config(self, daemon: ShaiDaemon) -> None:
         result = await daemon.handle_request({"type": "reload_config"})
         assert result["type"] == "reload_config"
 
     @pytest.mark.asyncio
-    async def test_unknown_type(self, daemon: AishDaemon) -> None:
+    async def test_unknown_type(self, daemon: ShaiDaemon) -> None:
         result = await daemon.handle_request({"type": "invalid"})
         assert result["type"] == "error"
 
     @pytest.mark.asyncio
-    async def test_empty_nl_prompt(self, daemon: AishDaemon) -> None:
+    async def test_empty_nl_prompt(self, daemon: ShaiDaemon) -> None:
         result = await daemon.handle_request({
             "type": "nl",
             "prompt": "",
@@ -120,7 +120,7 @@ class TestDaemonRequestHandling:
         assert result["command"] == ""
 
     @pytest.mark.asyncio
-    async def test_empty_error_correct(self, daemon: AishDaemon) -> None:
+    async def test_empty_error_correct(self, daemon: ShaiDaemon) -> None:
         result = await daemon.handle_request({
             "type": "error_correct",
             "failed_command": "",
@@ -130,7 +130,7 @@ class TestDaemonRequestHandling:
         assert result["suggestion"] == ""
 
     @pytest.mark.asyncio
-    async def test_empty_history_search(self, daemon: AishDaemon) -> None:
+    async def test_empty_history_search(self, daemon: ShaiDaemon) -> None:
         result = await daemon.handle_request({
             "type": "history_search",
             "query": "",

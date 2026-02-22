@@ -15,7 +15,7 @@ import sys
 import time
 from pathlib import Path
 
-from shai.config import AishConfig
+from shai.config import ShaiConfig
 
 
 def _strip_control_chars(s: str) -> str:
@@ -32,7 +32,7 @@ def _get_src_dir() -> str:
     return str(Path(__file__).resolve().parent)
 
 
-def _shell_init_zsh(config: AishConfig) -> None:
+def _shell_init_zsh(config: ShaiConfig) -> None:
     """Output zsh integration code for eval."""
     src_dir = _get_src_dir()
     shell_dir = Path(__file__).resolve().parent / "shell"
@@ -76,7 +76,7 @@ fi
 
 def _cmd_shell_init(args: argparse.Namespace) -> None:
     """Handle `shai shell-init <shell>`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     shell = args.shell
     if shell != "zsh":
         print(f"shai: shell '{shell}' is not yet supported (only zsh)", file=sys.stderr)
@@ -86,7 +86,7 @@ def _cmd_shell_init(args: argparse.Namespace) -> None:
 
 def _cmd_start(args: argparse.Namespace) -> None:
     """Handle `shai start`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     pid_path = config.get_pid_path()
     socket_path = config.get_socket_path()
 
@@ -120,7 +120,7 @@ def _cmd_start(args: argparse.Namespace) -> None:
 
 def _cmd_stop(args: argparse.Namespace) -> None:
     """Handle `shai stop`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     pid_path = config.get_pid_path()
     socket_path = config.get_socket_path()
 
@@ -143,7 +143,7 @@ def _cmd_stop(args: argparse.Namespace) -> None:
 
 def _cmd_status(args: argparse.Namespace) -> None:
     """Handle `shai status`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     pid_path = config.get_pid_path()
 
     running = False
@@ -185,7 +185,7 @@ def _cmd_status(args: argparse.Namespace) -> None:
             _print_health(health)
 
 
-def _query_daemon_health(config: AishConfig) -> dict | None:
+def _query_daemon_health(config: ShaiConfig) -> dict | None:
     """Query the daemon for connection health info via reload_config."""
     # We reuse the socket to get a simple ping; full health reporting
     # would require a dedicated status endpoint in the daemon
@@ -276,7 +276,7 @@ def _cmd_init(args: argparse.Namespace) -> None:
     ac_model = input().strip() or default_autocomplete
 
     # Write config
-    config = AishConfig()
+    config = ShaiConfig()
     config.provider.name = provider
     config.provider.api_key = api_key
     config.provider.model = model
@@ -321,7 +321,7 @@ def _cmd_init(args: argparse.Namespace) -> None:
 
 def _cmd_config(args: argparse.Namespace) -> None:
     """Handle `shai config` — open config in $EDITOR."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     config_path = config.config_path
 
     if not config_path.exists():
@@ -337,7 +337,7 @@ def _cmd_config(args: argparse.Namespace) -> None:
     subprocess.run([editor, str(config_path)])
 
 
-def _send_reload(config: AishConfig) -> None:
+def _send_reload(config: ShaiConfig) -> None:
     """Send reload_config to daemon after config changes."""
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -352,7 +352,7 @@ def _send_reload(config: AishConfig) -> None:
 
 def _cmd_set(args: argparse.Namespace) -> None:
     """Handle `shai set <key> <value>`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     key = args.key
     value = args.value
 
@@ -369,12 +369,12 @@ def _cmd_set(args: argparse.Namespace) -> None:
 
 def _cmd_get(args: argparse.Namespace) -> None:
     """Handle `shai get <key>`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     key = args.key
     value = config.get_flat(key)
     default = config.get_default(key)
 
-    if value is None and key not in AishConfig.FLAT_KEYS:
+    if value is None and key not in ShaiConfig.FLAT_KEYS:
         print(f"  shai: unknown config key '{key}'", file=sys.stderr)
         sys.exit(1)
 
@@ -386,7 +386,7 @@ def _cmd_get(args: argparse.Namespace) -> None:
 
 def _cmd_reset(args: argparse.Namespace) -> None:
     """Handle `shai reset <key>`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     key = args.key
 
     if config.reset_value(key):
@@ -400,8 +400,8 @@ def _cmd_reset(args: argparse.Namespace) -> None:
 
 def _cmd_defaults(args: argparse.Namespace) -> None:
     """Handle `shai defaults`."""
-    config = AishConfig.load()
-    for key in AishConfig.FLAT_KEYS:
+    config = ShaiConfig.load()
+    for key in ShaiConfig.FLAT_KEYS:
         value = config.get_flat(key)
         default = config.get_default(key)
         # Mask API key
@@ -419,7 +419,7 @@ def _cmd_defaults(args: argparse.Namespace) -> None:
 
 def _cmd_model(args: argparse.Namespace) -> None:
     """Handle `shai model`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     ac = config.provider.effective_autocomplete_model
     nl = config.provider.model
     name = config.provider.name
@@ -429,7 +429,7 @@ def _cmd_model(args: argparse.Namespace) -> None:
 
 def _cmd_model_set(args: argparse.Namespace) -> None:
     """Handle `shai model set <model>`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     model = args.model
 
     if args.autocomplete:
@@ -454,14 +454,14 @@ def _cmd_model_set(args: argparse.Namespace) -> None:
 
 def _cmd_provider(args: argparse.Namespace) -> None:
     """Handle `shai provider`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     print(f"  provider: {config.provider.name}")
     print(f"  endpoint: {config.provider.effective_api_base_url}")
 
 
 def _cmd_provider_set(args: argparse.Namespace) -> None:
     """Handle `shai provider set <name>`."""
-    config = AishConfig.load()
+    config = ShaiConfig.load()
     name = args.name
 
     if name not in ("openai", "anthropic"):

@@ -10,17 +10,17 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from shai.config import AishConfig
-from shai.daemon import AishDaemon
+from shai.config import ShaiConfig
+from shai.daemon import ShaiDaemon
 
 
 class TestDaemonIntegration:
     """Test the daemon's socket server with real asyncio connections."""
 
     @pytest.fixture
-    def config(self, tmp_path: Path) -> AishConfig:
+    def config(self, tmp_path: Path) -> ShaiConfig:
         """Create a config pointing to a temp socket."""
-        config = AishConfig()
+        config = ShaiConfig()
         # Use /tmp for socket to avoid AF_UNIX path length limit on macOS
         import tempfile
         sock_dir = Path(tempfile.mkdtemp(prefix="shai-test-"))
@@ -29,15 +29,15 @@ class TestDaemonIntegration:
         return config
 
     @pytest.fixture
-    def daemon(self, config: AishConfig) -> AishDaemon:
-        d = AishDaemon(config)
+    def daemon(self, config: ShaiConfig) -> ShaiDaemon:
+        d = ShaiDaemon(config)
         # Override socket/pid paths
         d.config.get_socket_path = lambda: config._test_socket_path  # type: ignore[attr-defined]
         d.config.get_pid_path = lambda: config._test_pid_path  # type: ignore[attr-defined]
         return d
 
     @pytest.mark.asyncio
-    async def test_daemon_handles_complete_request(self, daemon: AishDaemon) -> None:
+    async def test_daemon_handles_complete_request(self, daemon: ShaiDaemon) -> None:
         """Test that the daemon can handle a complete request via handle_request."""
         mock_return = "tus --short"
         with patch.object(
@@ -57,7 +57,7 @@ class TestDaemonIntegration:
             assert result["request_id"] == "test-1"
 
     @pytest.mark.asyncio
-    async def test_daemon_handles_nl_request(self, daemon: AishDaemon) -> None:
+    async def test_daemon_handles_nl_request(self, daemon: ShaiDaemon) -> None:
         mock_return = "find . -name '*.py'"
         with patch.object(
             daemon.llm, "complete_with_retry",
@@ -73,7 +73,7 @@ class TestDaemonIntegration:
             assert result["command"] == "find . -name '*.py'"
 
     @pytest.mark.asyncio
-    async def test_daemon_handles_error_correct(self, daemon: AishDaemon) -> None:
+    async def test_daemon_handles_error_correct(self, daemon: ShaiDaemon) -> None:
         mock_return = "git push origin main"
         with patch.object(
             daemon.llm, "complete",
@@ -91,7 +91,7 @@ class TestDaemonIntegration:
             assert result["suggestion"] == "git push origin main"
 
     @pytest.mark.asyncio
-    async def test_daemon_handles_proactive(self, daemon: AishDaemon) -> None:
+    async def test_daemon_handles_proactive(self, daemon: ShaiDaemon) -> None:
         with patch.object(
             daemon.llm, "complete",
             new_callable=AsyncMock, return_value="npm audit fix",
@@ -111,7 +111,7 @@ class TestDaemonIntegration:
             assert result["suggestion"] == "npm audit fix"
 
     @pytest.mark.asyncio
-    async def test_daemon_socket_server(self, daemon: AishDaemon) -> None:
+    async def test_daemon_socket_server(self, daemon: ShaiDaemon) -> None:
         """Test actual socket communication."""
         socket_path = daemon.config.get_socket_path()
 

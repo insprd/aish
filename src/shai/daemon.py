@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from shai.config import AishConfig
+from shai.config import ShaiConfig
 from shai.context import ContextInfo
 from shai.llm import TIMEOUT_AUTOCOMPLETE, TIMEOUT_HISTORY, TIMEOUT_NL, LLMClient
 from shai.prompts import (
@@ -125,13 +125,13 @@ def _strip_code_fences(text: str) -> str:
     return m.group(1).strip() if m else text
 
 
-class AishDaemon:
+class ShaiDaemon:
     """Main daemon process."""
 
     IDLE_TIMEOUT_SECONDS: float = 30 * 60  # 30 minutes
 
-    def __init__(self, config: AishConfig | None = None) -> None:
-        self.config = config or AishConfig.load()
+    def __init__(self, config: ShaiConfig | None = None) -> None:
+        self.config = config or ShaiConfig.load()
         self.llm = LLMClient(self.config)
         self.context = ContextInfo()
         self.session = SessionBuffer()
@@ -332,7 +332,7 @@ class AishDaemon:
     def _handle_reload_config(self) -> dict[str, Any]:
         """Reload configuration from disk."""
         try:
-            self.config = AishConfig.load()
+            self.config = ShaiConfig.load()
             self.llm.config = self.config
             logger.info("Configuration reloaded")
             return {"type": "reload_config", "ok": True}
@@ -425,7 +425,7 @@ async def _run() -> None:
             logging.StreamHandler(),
         ],
     )
-    daemon = AishDaemon()
+    daemon = ShaiDaemon()
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):

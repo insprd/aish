@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from shai.config import AishConfig
+from shai.config import ShaiConfig
 
 logger = logging.getLogger("shai.llm")
 
@@ -155,7 +155,7 @@ class ResponseCache:
 class LLMClient:
     """Async LLM client supporting OpenAI and Anthropic."""
 
-    def __init__(self, config: AishConfig) -> None:
+    def __init__(self, config: ShaiConfig) -> None:
         self.config = config
         self.health = ConnectionHealth()
         self.cache = ResponseCache()

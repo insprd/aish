@@ -82,13 +82,13 @@ class UIConfig:
 
 
 @dataclass
-class AishConfig:
+class ShaiConfig:
     provider: ProviderConfig = field(default_factory=ProviderConfig)
     ui: UIConfig = field(default_factory=UIConfig)
     config_path: Path = field(default_factory=_default_config_path)
 
     @classmethod
-    def load(cls, path: Path | None = None) -> AishConfig:
+    def load(cls, path: Path | None = None) -> ShaiConfig:
         """Load config from TOML file with env var overrides."""
         config_path = path or _default_config_path()
         raw: dict[str, Any] = {}
@@ -99,7 +99,7 @@ class AishConfig:
         return cls._from_dict(raw, config_path)
 
     @classmethod
-    def _from_dict(cls, raw: dict[str, Any], config_path: Path) -> AishConfig:
+    def _from_dict(cls, raw: dict[str, Any], config_path: Path) -> ShaiConfig:
         provider_raw = raw.get("provider", {})
         ui_raw = raw.get("ui", {})
 
