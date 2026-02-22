@@ -20,6 +20,7 @@ __aish_clear_ghost() {
     if [[ -n "$__AISH_SUGGESTION" ]]; then
         __AISH_SUGGESTION=""
         POSTDISPLAY=""
+        region_highlight=("${(@)region_highlight:#P*}")
         zle -R
     fi
 }
@@ -29,8 +30,10 @@ __aish_draw_ghost() {
     local suggestion="$1"
     if [[ -n "$suggestion" ]]; then
         __AISH_SUGGESTION="$suggestion"
-        # Show as dimmed text
-        POSTDISPLAY=$'\e[90m'"${suggestion}"$'\e[0m'
+        POSTDISPLAY="$suggestion"
+        # Color POSTDISPLAY using region_highlight (P prefix = POSTDISPLAY range)
+        region_highlight=("${(@)region_highlight:#P*}")
+        region_highlight+=("P0 ${#suggestion} fg=8")
         zle -R
     fi
 }
