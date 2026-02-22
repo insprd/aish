@@ -168,7 +168,15 @@ $ █
 $ █
 ```
 
-## What happens under the hood (proactive suggestions)
+## What happens under the hood (proactive suggestions) — NOT YET IMPLEMENTED
+
+> **Status**: The daemon-side infrastructure exists (session buffer, proactive prompt,
+> `_handle_complete` detects proactive mode when `buffer=""` and `last_output` is present),
+> but the shell-side output capture is not implemented. See "Output capture mechanism" below.
+> Currently `preexec` only records the command name and `precmd` records exit status — no
+> output is captured or sent to the daemon.
+
+### Planned flow (when output capture is available)
 
 ```
 Previous command finishes
@@ -270,72 +278,145 @@ The terminal session is a sequential stream — the most relevant context is alw
 
 ## What happens under the hood (regular autocomplete)
 
+### Ghost text rendering: direct terminal escape codes
+
+Ghost text is drawn by writing ANSI escape codes directly to `/dev/tty`, bypassing ZLE's
+rendering pipeline entirely. This is the only approach that works reliably on zsh 5.9 (macOS):
+
+- **POSTDISPLAY**: Does NOT interpret ANSI escape sequences — `\e[90m` renders as raw text.
+  The `region_highlight` `P` prefix with `fg=242` was invisible (possibly terminal-dependent).
+- **BUFFER modification from `zle -F` callbacks**: `$BUFFER` reads as empty inside async
+  fd-watcher callbacks on zsh 5.9 macOS. This is a fundamental limitation that makes any
+  BUFFER-based approach (like zsh-autosuggestions) unworkable from async contexts.
+- **What works**: `echo -n $'\e[90m'$suggestion$'\e[0m\e[${len}D' > /dev/tty` — prints
+  gray text at the cursor, then moves the cursor back. The ghost text is purely visual
+  (not in BUFFER), so accepting it means appending `$__AISH_SUGGESTION` to `$BUFFER`.
+
+### IPC: native zsh sockets via `zsh/net/socket`
+
+Communication with the daemon uses zsh's built-in `zsocket` command (from `zsh/net/socket`),
+which connects directly to the Unix domain socket without spawning any external process:
+
+```zsh
+zmodload zsh/net/socket
+zsocket "$__AISH_SOCKET"          # $REPLY = fd number
+print -u $REPLY "$json_request"   # send
+zle -F $REPLY __aish_on_response  # watch for response async
+```
+
+This avoids the overhead of spawning `python3` or `socat` per keystroke. The `zle -F` callback
+fires when data arrives on the socket fd, reads the JSON response, extracts the suggestion,
+and calls `__aish_draw_ghost` — all without modifying BUFFER.
+
+### Debounce: process substitution timer
+
+Debounce uses `exec {fd}< <(sleep $delay && echo fire)` with `zle -F` to watch the fd.
+When the sleep completes and writes "fire", the callback sends the autocomplete request.
+Each new keystroke cancels the previous timer fd and starts a new one.
+
+This replaces `sched` (which doesn't work reliably for sub-second delays in ZLE context)
+and avoids external timer processes.
+
+### Full flow
+
 ```
 Keystroke ('a')
   │
   ▼
-ZLE self-insert widget fires
-  ├── Character is added to $BUFFER normally
-  ├── Any existing ghost text is cleared (erase via \e[0K)
-  ├── Previous in-flight request is cancelled (via request_id)
-  └── Adaptive debounce timer starts:
-        ├── $BUFFER length < autocomplete_delay_threshold (default 8) → autocomplete_delay_ms (default 200ms)
-        └── $BUFFER length ≥ autocomplete_delay_threshold → autocomplete_delay_short_ms (default 100ms)
+__aish_self_insert (ZLE widget, bound to all printable chars via range binding)
+  ├── __aish_clear_suggestion()
+  │   ├── echo -n '\e[0K' > /dev/tty  (erase ghost text from terminal)
+  │   └── __AISH_SUGGESTION=""
+  ├── zle .self-insert (normal character insertion into BUFFER)
+  └── __aish_schedule_complete()
         │
         ▼
-  Debounce expires with no more keystrokes
+  __aish_schedule_complete()
+  ├── Cancel any existing debounce timer: zle -F $timer_fd; exec {fd}<&-
+  ├── ${#BUFFER} < __AISH_MIN_CHARS (3)? → return (skip)
+  ├── Prefix reuse check:
+  │   └── If BUFFER extends LAST_BUFFER and SUGGESTION starts with the extra chars,
+  │       trim SUGGESTION and redraw — no API call needed
+  ├── Adaptive debounce:
+  │   ├── ${#BUFFER} < 8 → delay = 200ms
+  │   └── ${#BUFFER} >= 8 → delay = 100ms
+  └── exec {timer_fd}< <(sleep $delay && echo fire)
+      zle -F $timer_fd __aish_debounce_fired
+        │
+        ▼ (after debounce expires)
+  __aish_debounce_fired()
+  ├── Clean up timer fd
+  └── __aish_send_request "$BUFFER" "$CURSOR"
         │
         ▼
-  Debounce fires → check thresholds
-  ├── $BUFFER length < autocomplete_min_chars? → skip
-  └── OK → send request to daemon via Unix socket (non-blocking)
-        │
-        ▼
-  Request sent:
-  {
-    "type": "complete",
-    "request_id": "abc123",
-    "buffer": "git sta",
-    "cursor_pos": 7,
-    "cwd": "/home/matt/project",
-    "shell": "zsh",
-    "history": ["cd project", "ls -la", "vim README.md", ...],
-    "exit_status": 0
-  }
-        │
-        ▼
-  zle -F registers fd watcher (prompt remains fully interactive)
+  __aish_send_request()
+  ├── Close any previous in-flight response fd
+  ├── zsocket "$__AISH_SOCKET" → $REPLY = fd
+  ├── Build JSON (python3 for proper escaping):
+  │   {"type":"complete", "request_id":"ac-$RANDOM",
+  │    "buffer":"git sta", "cursor_pos":7,
+  │    "cwd":"/Users/matt/project", "shell":"zsh",
+  │    "history":[], "exit_status":0}
+  ├── print -u $fd "$json"
+  └── zle -F $fd __aish_on_response
         │
         ▼
   Daemon receives request
   ├── Checks cache: (buffer, cwd) → cache hit? Return immediately
-  ├── Cache miss → call LLM API (autocomplete_model, streaming)
-  │   ├── Prompt: system prompt + buffer + cwd + history (minimal tokens)
-  │   └── Instruction: return ONLY the completion suffix, empty if unsure
-  ├── First meaningful token arrives → send partial response
-  └── Full response: {"type": "complete", "request_id": "abc123", "suggestion": "tus --short"}
+  ├── Cache miss → call LLM API (autocomplete_model, non-streaming)
+  │   ├── Prompt: system prompt + buffer + cwd + history + exit_status
+  │   └── Instruction: "Return ONLY the completion suffix — the exact text
+  │       to append directly after what they typed. Include a leading space
+  │       if one is needed."
+  ├── Post-processing:
+  │   ├── _ensure_leading_space() — adds space before -|>&;<() if needed
+  │   ├── _strip_code_fences() — regex to unwrap ```...``` blocks
+  │   └── Reject multiline (take first line only)
+  └── Response: {"type":"complete", "request_id":"ac-12345",
+                  "suggestion":" clone https://github.com/..."}
         │
         ▼
-  zle -F callback fires
-  ├── Check: is request_id still current? (user may have typed more)
-  │   ├── Stale → discard silently
-  │   └── Current → continue
-  ├── Store suggestion in __AISH_SUGGESTION, draw as dim grey text via
-  │     echo -n '\e[90m'"$suggestion"'\e[0m\e[<len>D' > /dev/tty
-  └── zle -R (redraws the line with ghost text)
+  __aish_on_response() — zle -F callback
+  ├── read -r -u $fd response (JSON)
+  ├── Clean up fd: zle -F $fd; exec {fd}<&-
+  ├── Extract suggestion via shell string ops (no jq/python needed):
+  │     suggestion="${response#*\"suggestion\": \"}"
+  │     suggestion="${suggestion%%\"*}"
+  ├── Validate: non-empty, < 200 chars, no backticks/newlines/prose
+  ├── __AISH_SUGGESTION="$suggestion"
+  └── __aish_draw_ghost()
+        │
+        ▼
+  __aish_draw_ghost()
+  └── echo -n $'\e[90m'"$suggestion"$'\e[0m\e['"${#suggestion}"'D' > /dev/tty
+      (gray text at cursor → move cursor back → ghost visible, cursor unmoved)
         │
         ▼
   User sees: $ git sta‹tus --short›
         │
         ▼
   Next keystroke:
-  ├── Tab or →     → accept: append __AISH_SUGGESTION to $BUFFER, erase ghost
-  ├── → (word mode) → accept first word only, redraw rest as ghost text
-  ├── Esc           → dismiss: erase ghost text
-  └── Any other key → erase ghost text, insert char, restart debounce cycle
+  ├── → (right arrow) → __aish_accept_suggestion: BUFFER+=$SUGGESTION, CURSOR=end
+  ├── Shift+→         → __aish_accept_word: accept first word, redraw rest as ghost
+  ├── Tab              → accept if suggestion exists, else native zsh completion
+  ├── Enter            → __aish_line_finish: clear ghost, cancel debounce, accept-line
+  ├── Backspace        → clear ghost, delete char, reschedule if len >= min_chars
+  └── Any printable    → clear ghost, insert char, restart debounce cycle
 ```
 
-## Output capture mechanism (for proactive suggestions)
+## Output capture mechanism (for proactive suggestions) — DEFERRED
+
+> **Status**: Not implemented. The FIFO/tee approach described below was too invasive
+> on macOS zsh 5.9 — it created background processes that leaked job notifications
+> (`[1] done`, `[2] done`) on every command, and broke `exec zsh`. The mechanism was
+> removed entirely. Proactive suggestions require a non-invasive output capture approach
+> (e.g. script(1) wrapper, `REPORTTIME`-style hooks, or terminal multiplexer integration).
+>
+> Currently, `preexec` records the last command and `precmd` records the exit status.
+> The daemon's session buffer and proactive prompt infrastructure exist but have no
+> output data to feed them.
+
+### Original design (preserved for future reference)
 
 ```
 Shell startup (source aish.zsh)
@@ -423,19 +504,20 @@ If none of these patterns match, the output is considered routine and no proacti
 
 ## Performance pipeline
 
-### Regular autocomplete
+### Regular autocomplete (implemented)
 
 ```
-Keystroke → Adaptive debounce (200ms or 100ms) → Threshold check → Socket send (<1ms)
+Keystroke → Adaptive debounce (200ms or 100ms)
+    → Min chars check → zsocket connect (<1ms) → JSON send
     → Daemon cache check (<1ms)
     → LLM API call (200-500ms cloud, prompt cache hit: 100-250ms)
-    → Response via fd → ghost text render (<1ms)
+    → Response via zle -F fd watcher → ghost text render to /dev/tty (<1ms)
 
 Total perceived latency: debounce + model inference time
 Target: ghost text appears within 300-600ms of pause
 ```
 
-### Proactive suggestions
+### Proactive suggestions (not yet implemented — needs output capture)
 
 ```
 Command finishes → precmd fires → Heuristic check (<1ms)
@@ -449,40 +531,41 @@ Perceived latency: 0ms (prefetch started before prompt drew)
 Best case: ghost text appears WITH the prompt (zero delay)
 ```
 
-Note: background prefetch means the LLM call races against prompt rendering. On fast cloud APIs with prompt caching, the response often arrives before the user has even registered the prompt.
-
 ### Latency optimizations at each stage
 
 | Stage | Optimization |
 |---|---|
-| Keystroke → request | Adaptive debounce (200ms base, 100ms for long buffers); cancel stale in-flight requests |
-| precmd → request | Background prefetch (starts during precmd, before prompt draws); heuristic pre-filter prevents unnecessary LLM calls |
+| Keystroke → request | Adaptive debounce (200ms base, 100ms for long buffers); cancel stale in-flight requests via fd cleanup |
+| IPC | `zsocket` (native zsh socket) — no subprocess spawn per request |
 | Request → daemon | Unix socket IPC, <1ms |
-| Daemon → LLM | Connection pooling (skip TLS handshake), small prompt token budget |
-| Prompt prefix | Prompt caching (OpenAI auto-cache, Anthropic explicit cache_control) — ~50% TTFT reduction on cache hit |
-| LLM inference | Small/fast cloud model (`gpt-4o-mini`, `claude-haiku`), streaming |
-| Response → display | `zle -F` fd watcher, no polling |
-| Repeat requests | Response cache on `(buffer_prefix, cwd)` or `(last_command, output_hash)`, ~60s TTL |
+| Daemon → LLM | HTTP/2 connection pooling (skip TLS handshake), small prompt token budget |
+| Prompt prefix | Prompt caching (OpenAI auto-cache, Anthropic explicit `cache_control: ephemeral` + beta header) — ~50% TTFT reduction on cache hit |
+| LLM inference | Small/fast cloud model (`gpt-4o-mini`, `claude-haiku-4-5`), non-streaming |
+| Response → display | `zle -F` fd watcher, no polling; direct `/dev/tty` write |
+| Repeat requests | Response cache on `(buffer, cwd)`, ~60s TTL |
 | User types more | Prefix reuse — trim existing suggestion client-side, no new API call |
+| Post-processing | `_strip_code_fences()` regex, `_ensure_leading_space()`, multiline rejection |
 
 ## Key UX decisions
 
 | Decision | Choice | Why |
 |---|---|---|
-| Ghost text style | Dimmed/grey via ANSI escape codes (`\e[90m`) | Direct terminal output, works with any terminal, visually distinct from typed text |
-| Accept full suggestion | Tab or → | Matches iTerm2, Fish, GitHub Copilot conventions |
-| Accept word-by-word | → (right arrow) | Lets user cherry-pick parts of a suggestion |
-| Dismiss | Esc or any non-accept key | Typing clears ghost text and starts a new cycle |
-| Debounce | 200ms base / 100ms for long buffers (all configurable) | Adaptive — `autocomplete_delay_ms`, `autocomplete_delay_short_ms`, `autocomplete_delay_threshold` |
-| Min chars | 3 (configurable) | Single-char suggestions are rarely useful |
-| Proactive on empty buffer | Yes, when heuristic matches | Suggests follow-up commands from terminal output |
-| Proactive context | Two-tier: per-command output + rolling session buffer | Per-command covers explicit suggestions; session buffer gives multi-command awareness |
-| Session buffer | Last 20 commands × 20 lines output, in daemon memory | Fits in-context (no RAG needed), ephemeral (lost on restart) |
-| Proactive pre-filter | Heuristic regex scan | Avoids LLM calls for routine output (ls, cat, echo) |
-| Output capture | FIFO + background tee with PID tracking, zshexit cleanup | Prevents tee process leaks; old `>(tee ...)` approach leaked processes |
-| Completion spacing | `_ensure_leading_space()` post-processing in daemon | LLMs sometimes omit leading spaces; `.rstrip()` preserves them, heuristic adds them for flag/operator tokens |
+| Ghost text style | Dimmed/grey via ANSI escape codes (`\e[90m`) written directly to `/dev/tty` | Only approach that works on zsh 5.9 macOS — POSTDISPLAY doesn't interpret ANSI, BUFFER is empty in `zle -F` callbacks |
+| IPC mechanism | `zsh/net/socket` (`zsocket`) — native zsh Unix socket | No subprocess per keystroke; fd integrates directly with `zle -F` async watchers |
+| Accept full suggestion | → (right arrow) or Tab | Matches Fish, GitHub Copilot conventions; Tab falls back to native completion |
+| Accept word-by-word | Shift+→ (right arrow) | Lets user cherry-pick parts of a suggestion |
+| Dismiss | Any non-accept key clears ghost text | Typing clears ghost text and starts a new cycle; no explicit Esc binding needed |
+| Debounce | `exec {fd}< <(sleep $delay && echo fire)` + `zle -F` | Process substitution timer avoids `sched` limitations; fd integrates with ZLE event loop |
+| Debounce timing | 200ms base / 100ms for long buffers (all configurable) | Adaptive — `__AISH_DELAY`, `__AISH_DELAY_SHORT`, `__AISH_DELAY_THRESHOLD` |
+| Min chars | 3 (configurable via `__AISH_MIN_CHARS`) | Single-char suggestions are rarely useful |
+| Proactive on empty buffer | Planned but output capture not yet implemented | Requires non-invasive output capture (FIFO/tee approach was too invasive) |
+| Completion spacing | `_ensure_leading_space()` in daemon for `-\|>&;<()` chars | LLMs sometimes omit leading spaces; heuristic adds them for flag/operator tokens |
+| Code fence removal | `_strip_code_fences()` regex in daemon | LLMs sometimes wrap responses in \`\`\`...\`\`\` blocks; regex unwraps them |
+| Prompt caching | Anthropic `cache_control: {"type": "ephemeral"}` on system prompt | ~50% TTFT reduction on cache hit; system prompt is stable across requests |
+| Prefix reuse | Client-side: trim existing suggestion when user types matching chars | Avoids redundant API calls when user types into an existing suggestion |
+| JSON construction | `python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'` for buffer/cwd | Proper escaping of special characters; spawned only when debounce fires (not per keystroke) |
 | Daemon reload | Auto-restart when `.py` source files change | Shell checks mtimes vs PID file every 30 commands; seamless development |
-| Timeout | 5s hard cutoff (1s connect + 3s read) | Fast-fail on dead connections; don't wait the OS default 30-60s |
+| Timeout | 1s connect + 3s read hard cutoff | Fast-fail on dead connections; don't wait the OS default 30-60s |
 | Failure mode | Silent — no ghost text, no error | Never interrupt the user's typing flow |
 | Network down | Circuit breaker trips after 3 consecutive failures | Stops all network calls for 30s, then probes. No battery drain. |
 
