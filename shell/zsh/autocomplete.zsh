@@ -31,9 +31,8 @@ __aish_draw_ghost() {
     if [[ -n "$suggestion" ]]; then
         __AISH_SUGGESTION="$suggestion"
         POSTDISPLAY="$suggestion"
-        # Color POSTDISPLAY using region_highlight (P prefix = POSTDISPLAY range)
         region_highlight=("${(@)region_highlight:#P*}")
-        region_highlight+=("P0 ${#suggestion} fg=8")
+        region_highlight+=("P0 ${#suggestion} fg=242")
         zle -R
     fi
 }
@@ -58,51 +57,36 @@ __aish_autocomplete_callback() {
     read -r response <&$fd
     exec {fd}<&-  # Close fd
 
-    # Parse response
+    # Parse response (pure shell — no subshell to avoid breaking zle -R)
     if [[ -z "$response" ]]; then
         return
     fi
 
-    # Extract suggestion and request_id using python (reliable JSON parsing)
-    local result
-    result=$(python3 -c "
-import json, sys
-try:
-    d = json.loads(sys.stdin.read())
-    rid = d.get('request_id', '')
-    sug = d.get('suggestion', '')
-    warn = d.get('warning', '')
-    print(f'{rid}\t{sug}\t{warn}')
-except: pass
-" <<< "$response")
-
-    local resp_id="${result%%	*}"
-    local rest="${result#*	}"
-    local suggestion="${rest%%	*}"
-    local warning="${rest##*	}"
+    # Extract request_id
+    local resp_id=""
+    if [[ "$response" == *'"request_id"'* ]]; then
+        resp_id="${response#*\"request_id\": \"}"
+        resp_id="${resp_id%%\"*}"
+    fi
 
     # Check if this response is still current
     if [[ "$resp_id" != "$__AISH_REQUEST_ID" ]]; then
-        return  # Stale response
+        return
+    fi
+
+    # Extract suggestion
+    local suggestion=""
+    if [[ "$response" == *'"suggestion": "'* ]]; then
+        suggestion="${response#*\"suggestion\": \"}"
+        suggestion="${suggestion%%\"*}"
+        # Unescape basic JSON escapes
+        suggestion="${suggestion//\\n/$'\n'}"
+        suggestion="${suggestion//\\\\/\\}"
     fi
 
     # Draw ghost text
     if [[ -n "$suggestion" ]]; then
         __aish_draw_ghost "$suggestion"
-
-        # Show warning in POSTDISPLAY if present
-        if [[ -n "$warning" ]]; then
-            POSTDISPLAY=$'\e[90m'"${suggestion}"$'\e[0m\n\e[33m'"${warning}"$'\e[0m'
-            zle -R
-        fi
-
-        # First-use hint
-        if [[ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/aish/.onboarded" ]]; then
-            POSTDISPLAY=$'\e[90m'"${suggestion}"$'\e[0m\n\e[2maish: ghost text suggestion (Tab to accept, → to accept word, Esc to dismiss)\e[0m'
-            zle -R
-            mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/aish"
-            touch "${XDG_CONFIG_HOME:-$HOME/.config}/aish/.onboarded"
-        fi
     fi
 }
 
