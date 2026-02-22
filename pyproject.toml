@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ghst"
-version = "0.3.0"
+version = "0.4.0"
 description = "AI-powered shell plugin — ghost-text autocomplete, natural language commands, error correction, and history search"
 readme = "README.md"
 license = "MIT"
