@@ -12,34 +12,27 @@ LLM-powered ghost-text autocomplete, natural language commands, and semantic his
 
 ```bash
 uv tool install aish
+aish init
 ```
 
-Or install for development:
+The `init` wizard will configure your LLM provider, add shell integration to your `.zshrc`, start the daemon, and verify the connection. Then restart your shell:
+
+```bash
+exec zsh
+```
+
+## Development Setup
 
 ```bash
 git clone https://github.com/insprd/aish.git
 cd aish
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
+aish init        # configure provider + inject zshrc
+exec zsh         # reload shell to activate
 ```
 
-## Setup
-
-```bash
-aish init
-```
-
-This runs an interactive wizard that:
-1. Detects your shell and prints the source line for your `.zshrc`
-2. Prompts for your LLM provider (OpenAI or Anthropic) and API key
-3. Writes `~/.config/aish/config.toml`
-4. Starts the daemon and verifies the connection
-
-Add to your `.zshrc`:
-
-```bash
-eval "$(aish shell-init zsh)"
-```
+> **Note:** In dev mode, you must activate the venv (`source .venv/bin/activate`) in each new shell for `aish` to resolve to your local checkout. Alternatively, use `uv run aish` without activating. The `eval "$(aish shell-init zsh)"` line in your `.zshrc` handles this automatically once the venv is active.
 
 ## Usage
 
@@ -148,8 +141,6 @@ Planned features for future releases:
 ## Development
 
 ```bash
-uv venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
 uv run pytest              # Run tests
 uv run pytest -v           # Verbose
 uv run ruff check src/     # Lint
