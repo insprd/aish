@@ -93,10 +93,11 @@ __ghst_cheat_sheet() {
   │  ghst shortcuts                         │
   │                                         │
   │  Tab / →     Accept autocomplete        │
-  │  → (word)    Accept one word            │
+  │  Shift+→     Accept one word            │
   │  Esc         Dismiss suggestion         │
   │  Ctrl+G      Natural language command   │
   │  Ctrl+R      Search history by intent   │
+  │  Ctrl+Z      Undo generated command     │
   │  Ctrl+/      This cheat sheet           │
   │                                         │
   │  Press any key to dismiss               │
