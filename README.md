@@ -1,13 +1,11 @@
 # aish — AI-powered shell plugin
 
-LLM-powered ghost-text autocomplete, natural language commands, error correction, and semantic history search for your terminal. Works with any modern terminal emulator via standard ZLE — no terminal modifications needed.
+LLM-powered ghost-text autocomplete, natural language commands, and semantic history search for zsh. Works with any terminal emulator that supports ANSI escapes — no terminal modifications needed.
 
 ## Features
 
 - **Autocomplete** — Ghost text suggestions as you type, powered by an LLM with shell context. Accept with Tab/→.
 - **Natural Language Commands** — Press Ctrl+G, describe what you want in English, get a shell command.
-- **Error Correction** — When a command fails, aish suggests a fix as ghost text on the next prompt.
-- **Proactive Suggestions** — On an empty prompt, aish reads the last command's output and suggests the next command.
 - **History Search** — Press Ctrl+R to search your shell history with natural language instead of substring matching.
 
 ## Install
@@ -67,14 +65,6 @@ $ find . -name "*.py" -mtime -7█
 
 The generated command is placed in your buffer for review — **never auto-executed**. Press **Ctrl+Z** to undo and restore your original buffer.
 
-### Error Correction
-
-```
-$ git pussh origin main
-git: 'pussh' is not a git command.
-$ ‹git push origin main›    # Fix appears as ghost text
-```
-
 ### History Search (Ctrl+R)
 
 ```
@@ -103,8 +93,6 @@ autocomplete_delay_ms = 200             # Debounce delay (ms)
 autocomplete_min_chars = 3              # Min chars before autocomplete fires
 nl_hotkey = "^G"                        # NL command hotkey
 history_search_hotkey = "^R"            # History search hotkey
-error_correction = true                 # Auto-suggest fixes for failed commands
-proactive_suggestions = true            # Suggest next command from terminal output
 ```
 
 See `config/default.toml` for all available settings.
@@ -138,7 +126,6 @@ aish sends the following data to your configured LLM provider:
 - **Current buffer** (what you've typed so far)
 - **Current working directory**
 - **Recent shell history** (last 5-10 commands)
-- **Terminal output** (last 50 lines, for proactive suggestions — not yet implemented)
 
 aish does **NOT** send:
 
@@ -147,6 +134,16 @@ aish does **NOT** send:
 - SSH keys, passwords, or other credentials
 
 All sensitive data (API keys, passwords, tokens) is automatically stripped from history and terminal output before sending to the LLM.
+
+## Roadmap
+
+Planned features for future releases:
+
+- **Error Correction** — Auto-suggest fixes as ghost text when a command fails
+- **Proactive Suggestions** — Read the last command's output and suggest the next command on an empty prompt
+- **Bash & Fish Support** — Extend autocomplete and NL commands beyond zsh
+- **Local Model Support** — Optimized flows for Ollama, LM Studio, and other local inference servers
+- **Homebrew Installation** — `brew install aish` via a Homebrew tap
 
 ## Development
 
