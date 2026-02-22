@@ -181,6 +181,14 @@ class AishDaemon:
         # Strip trailing whitespace but preserve leading
         suggestion = suggestion.rstrip()
 
+        # Strip markdown artifacts
+        if suggestion.startswith("```"):
+            suggestion = ""
+        suggestion = suggestion.replace("`", "")
+        # Reject multiline suggestions for autocomplete
+        if "\n" in suggestion:
+            suggestion = suggestion.split("\n")[0].rstrip()
+
         # Safety check
         full_command = buffer + suggestion if buffer else suggestion
         warning = check_dangerous(full_command)

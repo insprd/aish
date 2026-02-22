@@ -102,6 +102,14 @@ __aish_on_response() {
     [[ -z "$suggestion" ]] && return
     (( ${#suggestion} > 200 )) && return
 
+    # Filter out LLM artifacts (markdown, prose, multiline)
+    [[ "$suggestion" == *'```'* ]] && return
+    [[ "$suggestion" == *$'\n'* ]] && return
+    [[ "$suggestion" == *"don't"* ]] && return
+    [[ "$suggestion" == *"cannot"* ]] && return
+    [[ "$suggestion" == *"I "* ]] && return
+    [[ "$suggestion" == *"Sorry"* ]] && return
+
     __AISH_SUGGESTION="$suggestion"
     __AISH_LAST_BUFFER="$__AISH_PENDING_BUFFER"
     __aish_draw_ghost
