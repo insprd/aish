@@ -159,10 +159,10 @@ __aish_preexec() {
     local fifo_err=$(mktemp -u /tmp/aish-fe-$$.XXXXXX)
     mkfifo "$fifo_out" "$fifo_err"
 
-    # Start tee processes
-    tee -a "$__AISH_OUTPUT_FILE" < "$fifo_out" >&$__AISH_STDOUT_BAK &
+    # Start tee processes (disowned to suppress job notifications)
+    tee -a "$__AISH_OUTPUT_FILE" < "$fifo_out" >&$__AISH_STDOUT_BAK &!
     __AISH_TEE_OUT_PID=$!
-    tee -a "$__AISH_OUTPUT_FILE" < "$fifo_err" >&$__AISH_STDERR_BAK &
+    tee -a "$__AISH_OUTPUT_FILE" < "$fifo_err" >&$__AISH_STDERR_BAK &!
     __AISH_TEE_ERR_PID=$!
 
     # Redirect stdout/stderr to FIFOs
@@ -183,11 +183,10 @@ __aish_precmd() {
         exec 1>&$__AISH_STDOUT_BAK 2>&$__AISH_STDERR_BAK
         exec {__AISH_STDOUT_BAK}>&- {__AISH_STDERR_BAK}>&-
 
-        # Kill tee processes
+        # Kill tee processes (disowned, so no wait needed)
         for _pid in $__AISH_TEE_OUT_PID $__AISH_TEE_ERR_PID; do
             if [[ -n "$_pid" ]] && kill -0 "$_pid" 2>/dev/null; then
                 kill "$_pid" 2>/dev/null
-                wait "$_pid" 2>/dev/null
             fi
         done
 
