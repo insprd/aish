@@ -169,18 +169,20 @@ print(json.dumps(history[-10:]))
 
     local json_request="{\"type\":\"nl\",\"prompt\":$escaped_prompt,\"buffer\":$escaped_buffer,\"cwd\":\"$PWD\",\"shell\":\"zsh\",\"history\":$history_json}"
 
-    # Send synchronous request (user is waiting)
+    # Send synchronous request (user is waiting, 15s timeout)
     local response
-    response=$(__ghst_request "$json_request")
+    response=$(__ghst_request "$json_request" 15)
 
     # Stop spinner
     __ghst_stop_spinner
 
     if [[ -z "$response" ]]; then
+        # Try to auto-restart daemon
+        ghst start --quiet &>/dev/null
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
         zle reset-prompt
-        __ghst_show_status "${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon — run 'ghst start'${__GHST_C_RESET}"
+        __ghst_show_status "${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}daemon restarted — try again${__GHST_C_RESET}"
         return
     fi
 
@@ -289,16 +291,17 @@ print(json.dumps(history[-500:]))
     local json_request="{\"type\":\"history_search\",\"query\":$escaped_query,\"history\":$history_json,\"shell\":\"zsh\"}"
 
     local response
-    response=$(__ghst_request "$json_request")
+    response=$(__ghst_request "$json_request" 15)
 
     # Stop spinner
     __ghst_stop_spinner
 
     if [[ -z "$response" ]]; then
+        ghst start --quiet &>/dev/null
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
         zle reset-prompt
-        __ghst_show_status "${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon${__GHST_C_RESET}"
+        __ghst_show_status "${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}daemon restarted — try again${__GHST_C_RESET}"
         return
     fi
 

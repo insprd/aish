@@ -25,15 +25,15 @@ __ghst_get_history() {
 # Send a JSON request to the daemon and print the response
 __ghst_request() {
     local json="$1"
-    # Use socat if available, fall back to zsh /dev/tcp or python
+    local timeout="${2:-10}"
     if command -v socat &>/dev/null; then
-        echo "$json" | socat - UNIX-CONNECT:"$__GHST_SOCKET" 2>/dev/null
+        echo "$json" | socat -T "$timeout" - UNIX-CONNECT:"$__GHST_SOCKET" 2>/dev/null
     else
         python3 -c "
 import socket, sys
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 try:
-    s.settimeout(5)
+    s.settimeout($timeout)
     s.connect('$__GHST_SOCKET')
     s.sendall(sys.stdin.buffer.read())
     data = b''

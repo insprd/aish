@@ -448,6 +448,9 @@ async def _run() -> None:
             logging.StreamHandler(),
         ],
     )
+    # Silence noisy third-party loggers
+    for name in ("hpack", "httpcore", "httpx"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     daemon = GhstDaemon()
 
     loop = asyncio.get_running_loop()
