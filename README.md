@@ -10,16 +10,32 @@ LLM-powered ghost-text autocomplete, natural language commands, and semantic his
 
 ## Install
 
+### uv (recommended)
+
 ```bash
 uv tool install ghst
-ghst init
 ```
 
-The `init` wizard will configure your LLM provider, add shell integration to your `.zshrc`, start the daemon, and verify the connection. Then restart your shell:
+### pipx
 
 ```bash
+pipx install ghst
+```
+
+### pip
+
+```bash
+pip install ghst
+```
+
+Then run the setup wizard:
+
+```bash
+ghst init
 exec zsh
 ```
+
+The `init` wizard configures your LLM provider, adds shell integration to `.zshrc`, starts the daemon, and verifies the connection. `exec zsh` reloads your shell to activate it.
 
 ## Development Setup
 
