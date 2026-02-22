@@ -86,6 +86,11 @@ autocomplete_delay_ms = 200             # Debounce delay (ms)
 autocomplete_min_chars = 3              # Min chars before autocomplete fires
 nl_hotkey = "^G"                        # NL command hotkey
 history_search_hotkey = "^R"            # History search hotkey
+ghost_color = "#6e7681"                 # Ghost text color (hex or 256-color index)
+accent_color = "#79c0ff"                # Prompt accent color (ghst>, spinner)
+success_color = "#56d364"               # Success indicator (✓)
+warning_color = "#e3b341"               # Warning indicator (⚠)
+error_color = "#f85149"                 # Error indicator (✗)
 ```
 
 See `config/default.toml` for all available settings.

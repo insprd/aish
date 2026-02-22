@@ -32,8 +32,8 @@ def _get_src_dir() -> str:
     return str(Path(__file__).resolve().parent)
 
 
-def _ghost_color_esc(value: str) -> str:
-    """Convert a ghost_color config value to a terminal escape sequence.
+def _color_esc(value: str) -> str:
+    """Convert a color config value to a terminal escape sequence.
 
     Accepts a 256-color index (e.g. "243") or hex RGB (e.g. "#767676").
     Returns empty string for invalid/empty input (caller uses default).
@@ -64,14 +64,26 @@ def _shell_init_zsh(config: GhstConfig) -> None:
     # Find the bin directory containing the ghst entry point
     bin_dir = str(Path(shutil.which("ghst") or sys.argv[0]).resolve().parent)
 
-    ghost_esc = _ghost_color_esc(config.ui.ghost_color)
+    ghost_esc = _color_esc(config.ui.ghost_color)
     ghost_export = f'\nexport __GHST_GHOST_ESC=$\'{ghost_esc}\'' if ghost_esc else ""
+
+    # UI color exports
+    color_exports = ""
+    for name, attr in (
+        ("ACCENT", "accent_color"),
+        ("SUCCESS", "success_color"),
+        ("WARNING", "warning_color"),
+        ("ERROR", "error_color"),
+    ):
+        esc = _color_esc(getattr(config.ui, attr))
+        if esc:
+            color_exports += f"\nexport __GHST_{name}_ESC=$'{esc}'"
 
     print(f'''# ghst — AI-powered shell plugin
 # Add to .zshrc: eval "$(ghst shell-init zsh)"
 
 export __GHST_SRC_DIR="{src_dir}"
-export __GHST_SOCKET="{socket_path}"{ghost_export}
+export __GHST_SOCKET="{socket_path}"{ghost_export}{color_exports}
 
 # Ensure ghst CLI is on PATH
 [[ ":$PATH:" != *":{bin_dir}:"* ]] && export PATH="{bin_dir}:$PATH"

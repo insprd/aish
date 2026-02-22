@@ -7,12 +7,12 @@
 typeset -g __GHST_SAVED_BUFFER=""
 typeset -gi __GHST_SAVED_CURSOR=0
 
-# ── Colors ──────────────────────────────────────────────────────────────────
-typeset -g __GHST_C_CYAN=$'\e[36m'
+# ── Colors (configurable via config.toml, fallback to ANSI defaults) ────────
+typeset -g __GHST_C_ACCENT="${__GHST_ACCENT_ESC:-$'\e[36m'}"
+typeset -g __GHST_C_SUCCESS="${__GHST_SUCCESS_ESC:-$'\e[32m'}"
+typeset -g __GHST_C_WARNING="${__GHST_WARNING_ESC:-$'\e[33m'}"
+typeset -g __GHST_C_ERROR="${__GHST_ERROR_ESC:-$'\e[31m'}"
 typeset -g __GHST_C_DIM=$'\e[2m'
-typeset -g __GHST_C_GREEN=$'\e[32m'
-typeset -g __GHST_C_YELLOW=$'\e[33m'
-typeset -g __GHST_C_RED=$'\e[31m'
 typeset -g __GHST_C_RESET=$'\e[0m'
 
 # ── Spinner ─────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ __ghst_start_spinner() {
         local i=0
         while true; do
             printf '\r  %s %s %s%s%s' \
-                "${__GHST_C_CYAN}" "${frames[$((i % 10 + 1))]}" \
+                "${__GHST_C_ACCENT}" "${frames[$((i % 10 + 1))]}" \
                 "${__GHST_C_DIM}${label}...${__GHST_C_RESET}" \
                 "" "" > /dev/tty
             sleep 0.08
@@ -64,7 +64,7 @@ __ghst_nl_command() {
 
     # Use recursive-edit for full line editing (arrow keys, Ctrl+A/E, etc.)
     local orig_prompt="$PROMPT"
-    PROMPT="${__GHST_C_CYAN}ghst>${__GHST_C_RESET} ${context_hint}"
+    PROMPT="${__GHST_C_ACCENT}ghst>${__GHST_C_RESET} ${context_hint}"
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
@@ -115,7 +115,7 @@ print(json.dumps(history[-10:]))
     if [[ -z "$response" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n'"  ${__GHST_C_RED}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon — run 'ghst start'${__GHST_C_RESET}"
+        POSTDISPLAY=$'\n'"  ${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon — run 'ghst start'${__GHST_C_RESET}"
         zle reset-prompt
         return
     fi
@@ -141,7 +141,7 @@ except: pass
     if [[ -z "$command" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n'"  ${__GHST_C_YELLOW}⚠${__GHST_C_RESET} ${__GHST_C_DIM}couldn't generate a command${__GHST_C_RESET}"
+        POSTDISPLAY=$'\n'"  ${__GHST_C_WARNING}⚠${__GHST_C_RESET} ${__GHST_C_DIM}couldn't generate a command${__GHST_C_RESET}"
         zle reset-prompt
         return
     fi
@@ -155,9 +155,9 @@ except: pass
     CURSOR=${#BUFFER}
 
     # Show success hint (with warning if present)
-    local hint="${__GHST_C_GREEN}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
+    local hint="${__GHST_C_SUCCESS}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
     if [[ -n "$warning" ]]; then
-        POSTDISPLAY=$'\n'"  ${__GHST_C_YELLOW}⚠ ${warning}${__GHST_C_RESET}"$'\n'"  ${hint}"
+        POSTDISPLAY=$'\n'"  ${__GHST_C_WARNING}⚠ ${warning}${__GHST_C_RESET}"$'\n'"  ${hint}"
     else
         POSTDISPLAY=$'\n'"  ${hint}"
     fi
@@ -176,7 +176,7 @@ __ghst_history_search() {
 
     # Use recursive-edit for search query input
     local orig_prompt="$PROMPT"
-    PROMPT="${__GHST_C_CYAN}ghst history>${__GHST_C_RESET} "
+    PROMPT="${__GHST_C_ACCENT}ghst history>${__GHST_C_RESET} "
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
@@ -230,7 +230,7 @@ print(json.dumps(history[-500:]))
     if [[ -z "$response" ]]; then
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n'"  ${__GHST_C_RED}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon${__GHST_C_RESET}"
+        POSTDISPLAY=$'\n'"  ${__GHST_C_ERROR}✗${__GHST_C_RESET} ${__GHST_C_DIM}couldn't reach daemon${__GHST_C_RESET}"
         zle reset-prompt
         return
     fi
@@ -253,11 +253,11 @@ except: pass
         __GHST_SAVED_CURSOR=$saved_cursor
         BUFFER="$first_cmd"
         CURSOR=${#BUFFER}
-        POSTDISPLAY=$'\n'"  ${__GHST_C_GREEN}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
+        POSTDISPLAY=$'\n'"  ${__GHST_C_SUCCESS}✓${__GHST_C_RESET} ${__GHST_C_DIM}Ctrl+Z to undo${__GHST_C_RESET}"
     else
         BUFFER="$saved_buffer"
         CURSOR=$saved_cursor
-        POSTDISPLAY=$'\n'"  ${__GHST_C_YELLOW}⚠${__GHST_C_RESET} ${__GHST_C_DIM}no matching history found${__GHST_C_RESET}"
+        POSTDISPLAY=$'\n'"  ${__GHST_C_WARNING}⚠${__GHST_C_RESET} ${__GHST_C_DIM}no matching history found${__GHST_C_RESET}"
     fi
 
     zle reset-prompt
