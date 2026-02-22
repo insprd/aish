@@ -67,6 +67,18 @@ __ghst_clear_status() {
     fi
 }
 
+# Clean up autocomplete state (call after spinner/request completes)
+__ghst_cleanup_autocomplete() {
+    __ghst_cancel_debounce 2>/dev/null
+    if [[ -n "$__GHST_RESPONSE_FD" ]]; then
+        zle -F $__GHST_RESPONSE_FD 2>/dev/null
+        exec {__GHST_RESPONSE_FD}<&- 2>/dev/null
+        __GHST_RESPONSE_FD=""
+    fi
+    __GHST_SUGGESTION=""
+    __GHST_LAST_BUFFER=""
+}
+
 # ── Mode enter/exit helpers ─────────────────────────────────────────────────
 typeset -g __GHST_SAVED_RPS1=""
 typeset -g __GHST_SAVED_CURSOR_SHAPE=""
@@ -115,12 +127,7 @@ __ghst_nl_command() {
 
     # Clear any ghost text and cancel in-flight autocomplete
     __ghst_clear_suggestion 2>/dev/null
-    __ghst_cancel_debounce 2>/dev/null
-    if [[ -n "$__GHST_RESPONSE_FD" ]]; then
-        zle -F $__GHST_RESPONSE_FD 2>/dev/null
-        exec {__GHST_RESPONSE_FD}<&- 2>/dev/null
-        __GHST_RESPONSE_FD=""
-    fi
+    __ghst_cleanup_autocomplete
 
     # Show context hint if buffer has content
     local context_hint=""
@@ -180,8 +187,9 @@ print(json.dumps(history[-10:]))
     local response
     response=$(__ghst_request "$json_request" 15)
 
-    # Stop spinner
+    # Stop spinner and clean up stale autocomplete state
     __ghst_stop_spinner
+    __ghst_cleanup_autocomplete
 
     if [[ -z "$response" ]]; then
         # Try to auto-restart daemon
@@ -243,12 +251,7 @@ __ghst_history_search() {
 
     # Clear ghost text and cancel in-flight autocomplete
     __ghst_clear_suggestion 2>/dev/null
-    __ghst_cancel_debounce 2>/dev/null
-    if [[ -n "$__GHST_RESPONSE_FD" ]]; then
-        zle -F $__GHST_RESPONSE_FD 2>/dev/null
-        exec {__GHST_RESPONSE_FD}<&- 2>/dev/null
-        __GHST_RESPONSE_FD=""
-    fi
+    __ghst_cleanup_autocomplete
 
     # Use recursive-edit for search query input
     local orig_prompt="$PROMPT"
@@ -303,8 +306,9 @@ print(json.dumps(history[-500:]))
     local response
     response=$(__ghst_request "$json_request" 15)
 
-    # Stop spinner
+    # Stop spinner and clean up stale autocomplete state
     __ghst_stop_spinner
+    __ghst_cleanup_autocomplete
 
     if [[ -z "$response" ]]; then
         ghst start --quiet &>/dev/null
