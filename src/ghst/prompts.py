@@ -31,6 +31,7 @@ RULES:
 - Output ONLY the characters that come after the provided text
 - This is pure text continuation, not instruction following
 - Include leading whitespace when the next token is a new argument
+- Prefer relative paths over absolute paths
 - Do NOT repeat any part of the input
 - Do NOT explain, comment, or wrap in markdown
 - If no useful continuation exists, output nothing"""
