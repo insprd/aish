@@ -7,6 +7,7 @@ import getpass
 import json
 import os
 import re
+import shutil
 import signal
 import socket
 import subprocess
@@ -221,7 +222,8 @@ def _cmd_init(args: argparse.Namespace) -> None:
         print("  ⚠ Only zsh is supported currently. Proceeding with zsh.")
         shell = "zsh"
 
-    init_line = f'eval "$(shai shell-init {shell})"'
+    shai_bin = shutil.which("shai") or str(Path(sys.executable).resolve().parent / "shai")
+    init_line = f'eval "$({shai_bin} shell-init {shell})"'
     rc_path = Path.home() / f".{shell}rc"
     already_installed = False
     if rc_path.exists():
