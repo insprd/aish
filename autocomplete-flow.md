@@ -546,6 +546,16 @@ Best case: ghost text appears WITH the prompt (zero delay)
 | User types more | Prefix reuse — trim existing suggestion client-side, no new API call |
 | Post-processing | `_strip_code_fences()` regex, `_ensure_leading_space()`, multiline rejection |
 
+## LLM tuning for autocomplete quality
+
+Three parameters significantly affect the quality and verbosity of autocomplete suggestions:
+
+1. **`temperature: 0.3`** (not 0) — Zero temperature makes the model maximally deterministic, always picking the single highest-probability next token. For `ffmpeg`, that's just `-i`. At 0.3, the model is willing to generate a fuller, more useful completion like `-i input.mp4 -c:v libx264 output.mp4`. Higher values (>0.5) risk hallucinated flags and inconsistent suggestions.
+
+2. **Unquoted buffer in prompt** (`The user has typed: ffmpeg`, not `'ffmpeg'`) — Python's `!r` repr-quoting wraps the buffer in quotes, signaling to the LLM that it's a complete string literal rather than a partial command mid-typing. Without quotes, the LLM treats it as an incomplete command line and is more likely to continue it substantively.
+
+3. **`max_tokens: 200`** (not 1024) — Tighter limit matches the use case (completions are short) and prevents the model from rambling if it goes off the rails. 200 tokens is plenty for even complex pipeline completions.
+
 ## Key UX decisions
 
 | Decision | Choice | Why |
