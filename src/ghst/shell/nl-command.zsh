@@ -67,6 +67,34 @@ __ghst_clear_status() {
     fi
 }
 
+# ── Mode enter/exit helpers ─────────────────────────────────────────────────
+typeset -g __GHST_SAVED_RPS1=""
+typeset -g __GHST_SAVED_CURSOR_SHAPE=""
+
+__ghst_enter_mode() {
+    local rps1_label="$1"
+    # Save and set RPS1 hint
+    __GHST_SAVED_RPS1="${RPS1:-}"
+    RPS1="%{${__GHST_C_DIM}%}${rps1_label}%{${__GHST_C_RESET}%}"
+    # Switch to bar cursor (steady)
+    printf '\e[6 q' > /dev/tty
+}
+
+__ghst_exit_mode() {
+    # Restore RPS1
+    RPS1="$__GHST_SAVED_RPS1"
+    # Restore block cursor (blinking)
+    printf '\e[1 q' > /dev/tty
+}
+
+# Show placeholder text that disappears on first keystroke
+__ghst_show_placeholder() {
+    local text="$1"
+    printf '%s%s%s' "${__GHST_C_DIM}" "$text" "${__GHST_C_RESET}" > /dev/tty
+    # Move cursor back to start of placeholder
+    printf '\e[%dD' "${#text}" > /dev/tty
+}
+
 # ── NL Command Widget ───────────────────────────────────────────────────────
 __ghst_nl_command() {
     # Save current buffer for undo
@@ -90,12 +118,15 @@ __ghst_nl_command() {
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
+    __ghst_enter_mode "ESC to cancel"
     zle reset-prompt
+    __ghst_show_placeholder "describe what you want..."
     zle recursive-edit
     local edit_status=$?
 
     local nl_input="$BUFFER"
     PROMPT="$orig_prompt"
+    __ghst_exit_mode
 
     # Handle cancel (Ctrl+C or empty)
     if (( edit_status != 0 )) || [[ -z "$nl_input" ]]; then
@@ -201,12 +232,15 @@ __ghst_history_search() {
     BUFFER=""
     CURSOR=0
     POSTDISPLAY=""
+    __ghst_enter_mode "ESC to cancel"
     zle reset-prompt
+    __ghst_show_placeholder "search by intent..."
     zle recursive-edit
     local edit_status=$?
 
     local query="$BUFFER"
     PROMPT="$orig_prompt"
+    __ghst_exit_mode
 
     if (( edit_status != 0 )) || [[ -z "$query" ]]; then
         BUFFER="$saved_buffer"
