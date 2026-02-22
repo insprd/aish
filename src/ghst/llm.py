@@ -120,7 +120,7 @@ class CacheEntry:
 class ResponseCache:
     """In-memory response cache with TTL."""
 
-    def __init__(self, ttl: float = 60.0) -> None:
+    def __init__(self, ttl: float = 300.0) -> None:
         self.ttl = ttl
         self._cache: dict[str, CacheEntry] = {}
 

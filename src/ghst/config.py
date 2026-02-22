@@ -65,10 +65,10 @@ DEFAULT_CAPTURE_BLOCKLIST: list[str] = [
 
 @dataclass
 class UIConfig:
-    autocomplete_delay_ms: int = 200
-    autocomplete_delay_short_ms: int = 100
+    autocomplete_delay_ms: int = 100
+    autocomplete_delay_short_ms: int = 50
     autocomplete_delay_threshold: int = 8
-    autocomplete_min_chars: int = 3
+    autocomplete_min_chars: int = 2
     nl_hotkey: str = "^G"
     history_search_hotkey: str = "^R"
     cheat_sheet_hotkey: str = "^_"

@@ -11,10 +11,10 @@ typeset -gi __GHST_GHOST_VISIBLE=0
 typeset -g __GHST_RESPONSE_FD=""
 
 # ── Configuration ────────────────────────────────────────────────────────────
-typeset -gi __GHST_DELAY=${__GHST_DELAY:-200}
-typeset -gi __GHST_DELAY_SHORT=${__GHST_DELAY_SHORT:-100}
+typeset -gi __GHST_DELAY=${__GHST_DELAY:-100}
+typeset -gi __GHST_DELAY_SHORT=${__GHST_DELAY_SHORT:-50}
 typeset -gi __GHST_DELAY_THRESHOLD=${__GHST_DELAY_THRESHOLD:-8}
-typeset -gi __GHST_MIN_CHARS=${__GHST_MIN_CHARS:-3}
+typeset -gi __GHST_MIN_CHARS=${__GHST_MIN_CHARS:-2}
 typeset -g  __GHST_GHOST_ESC=${__GHST_GHOST_ESC:-$'\e[38;5;243m'}
 
 # ── Erase ghost text from terminal ───────────────────────────────────────────

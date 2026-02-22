@@ -29,10 +29,10 @@ class TestDefaults:
 
     def test_default_ui(self) -> None:
         config = GhstConfig()
-        assert config.ui.autocomplete_delay_ms == 200
-        assert config.ui.autocomplete_delay_short_ms == 100
+        assert config.ui.autocomplete_delay_ms == 100
+        assert config.ui.autocomplete_delay_short_ms == 50
         assert config.ui.autocomplete_delay_threshold == 8
-        assert config.ui.autocomplete_min_chars == 3
+        assert config.ui.autocomplete_min_chars == 2
         assert config.ui.nl_hotkey == "^G"
         assert config.ui.history_search_hotkey == "^R"
         assert config.ui.error_correction is True
