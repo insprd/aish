@@ -270,65 +270,6 @@ __aish_accept_line() {
 }
 zle -N accept-line __aish_accept_line
 
-# ── Proactive suggestions on empty prompt ────────────────────────────────────
-__aish_proactive_check() {
-    # Called from precmd via zle-line-init
-    if [[ -z "$BUFFER" && -n "$__AISH_CAPTURED_OUTPUT" && "$__AISH_PROACTIVE" == "1" ]]; then
-        # Check if error correction should take priority
-        if [[ "$__AISH_LAST_EXIT" != "0" && "$__AISH_ERROR_CORRECTION" == "1" ]]; then
-            __aish_send_error_correction
-            return
-        fi
-
-        # Run heuristic pre-filter
-        if __aish_output_is_actionable "$__AISH_CAPTURED_OUTPUT" "$__AISH_LAST_EXIT"; then
-            __aish_send_autocomplete
-        fi
-    elif [[ -z "$BUFFER" && "$__AISH_LAST_EXIT" != "0" && "$__AISH_ERROR_CORRECTION" == "1" ]]; then
-        __aish_send_error_correction
-    fi
-
-    # Clear captured output after use
-    __AISH_CAPTURED_OUTPUT=""
-}
-
-# ── Error correction ─────────────────────────────────────────────────────────
-__aish_error_correction_callback() {
-    local fd=$1
-    local response
-
-    zle -F $fd
-    read -r response <&$fd
-    exec {fd}<&-
-
-    [[ -z "$response" ]] && return
-
-    local suggestion
-    suggestion=$(python3 -c "
-import json, sys
-try:
-    d = json.loads(sys.stdin.read())
-    print(d.get('suggestion', ''))
-except: pass
-" <<< "$response")
-
-    if [[ -n "$suggestion" ]]; then
-        __aish_draw_ghost "$suggestion"
-    fi
-}
-
-__aish_send_error_correction() {
-    [[ -S "$__AISH_SOCKET" ]] || return
-
-    local json_request
-    json_request=$(python3 -c "
-import json, sys
-print(json.dumps({'type':'error_correct','failed_command':sys.argv[1],'exit_status':int(sys.argv[2]),'stderr':sys.argv[3],'cwd':sys.argv[4],'shell':'zsh'}))
-" "$__AISH_LAST_CMD" "$__AISH_LAST_EXIT" "${__AISH_CAPTURED_OUTPUT:-}" "$PWD" 2>/dev/null)
-
-    __aish_request_async "$json_request" __aish_error_correction_callback
-}
-
 # ── Debug: synchronous test (Ctrl+T) ────────────────────────────────────────
 __aish_debug_test() {
     [[ -S "$__AISH_SOCKET" ]] || { zle -M "aish debug: socket not found at $__AISH_SOCKET"; return; }
@@ -363,12 +304,6 @@ print(d.get('suggestion', ''))
 }
 zle -N __aish_debug_test
 bindkey '^T' __aish_debug_test
-
-# ── zle-line-init: trigger proactive check when new prompt appears ───────────
-__aish_line_init() {
-    __aish_proactive_check
-}
-zle -N zle-line-init __aish_line_init
 
 # ── Keybindings ──────────────────────────────────────────────────────────────
 bindkey '^I' __aish_accept_suggestion    # Tab
