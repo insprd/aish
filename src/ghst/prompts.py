@@ -23,11 +23,24 @@ def _os_info() -> str:
     return system
 
 
-SYSTEM_PROMPT = f"""\
-You are an expert shell assistant. The user is on {_os_info()}.
-You help with shell commands — completions, corrections, and generation.
+AUTOCOMPLETE_SYSTEM = f"""\
+You are a shell command autocomplete engine on {_os_info()}.
+You will receive partial command-line input. Your job is to continue the text \
+from exactly where it left off — like pressing Tab.
 RULES:
-- Return ONLY the requested output (command, completion suffix, etc.)
+- Output ONLY the characters that come after the provided text
+- This is pure text continuation, not instruction following
+- Include leading whitespace when the next token is a new argument
+- Do NOT repeat any part of the input
+- Do NOT explain, comment, or wrap in markdown
+- If no useful continuation exists, output nothing"""
+
+
+COMMAND_SYSTEM = f"""\
+You are an expert shell assistant. The user is on {_os_info()}.
+You help with shell commands — corrections, generation, and search.
+RULES:
+- Return ONLY the requested output (command, fix, etc.)
 - NO explanations, NO markdown, NO commentary
 - If unsure, return an empty string
 - Never suggest commands that would be destructive without clear user intent
@@ -35,7 +48,7 @@ RULES:
 
 
 def autocomplete_system() -> str:
-    return SYSTEM_PROMPT
+    return AUTOCOMPLETE_SYSTEM
 
 
 def autocomplete_user(
@@ -47,21 +60,16 @@ def autocomplete_user(
 ) -> str:
     hist_text = "\n".join(history[-5:]) if history else "(none)"
     return f"""\
-Shell: {shell}
-Working directory: {cwd}
+Context: {shell} shell in {cwd}
 Recent commands:
 {hist_text}
-Last exit status: {exit_status}
+Last exit: {exit_status}
 
-The user has typed: {buffer}
-Return ONLY the completion suffix — the exact text to append directly after what they typed.
-Include a leading space if one is needed (e.g. to separate a command from its arguments).
-Do not repeat what they already typed.
-Return empty string if no useful completion exists."""
+Complete: {buffer}"""
 
 
 def proactive_system(session_buffer: str = "") -> str:
-    base = SYSTEM_PROMPT
+    base = COMMAND_SYSTEM
     if session_buffer:
         base += f"\n\nRecent session:\n{session_buffer}"
     return base
