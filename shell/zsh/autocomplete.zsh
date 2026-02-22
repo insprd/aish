@@ -47,26 +47,25 @@ __aish_send_request() {
 
     [[ -S "$__AISH_SOCKET" ]] || return 1
 
-    # Build JSON
-    local buffer_json cwd_json
-    buffer_json=$(printf '%s' "$buffer" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null) || buffer_json="\"$buffer\""
-    cwd_json=$(printf '%s' "$PWD" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null) || cwd_json="\"$PWD\""
+    # Build entire JSON request in a single python3 call
+    # Pass buffer via env var to avoid shell quoting issues
+    local json_req
+    json_req=$(__AISH_BUF="$buffer" __AISH_CWD="$PWD" python3 -c "
+import json, os, sys
+hist = [h for h in sys.stdin.read().splitlines() if h]
+print(json.dumps({
+    'type': 'complete',
+    'request_id': 'ac-$RANDOM',
+    'buffer': os.environ['__AISH_BUF'],
+    'cursor_pos': $cursor_pos,
+    'cwd': os.environ['__AISH_CWD'],
+    'shell': 'zsh',
+    'history': hist,
+    'exit_status': ${__AISH_LAST_EXIT:-0},
+}))
+" < <(fc -l -5 -1 2>/dev/null | sed 's/^[[:space:]]*[0-9]*[[:space:]]*//') 2>/dev/null)
 
-    # Build history JSON from last 5 commands
-    local -a hist_entries
-    local hist_json="["
-    local first=1
-    local IFS=$'\n'
-    for entry in $(fc -l -5 -1 2>/dev/null | sed 's/^[[:space:]]*[0-9]*[[:space:]]*//'); do
-        local escaped
-        escaped=$(printf '%s' "$entry" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null) || continue
-        (( first )) || hist_json+=","
-        hist_json+="$escaped"
-        first=0
-    done
-    hist_json+="]"
-
-    local json_req="{\"type\":\"complete\",\"request_id\":\"ac-${RANDOM}\",\"buffer\":${buffer_json},\"cursor_pos\":${cursor_pos},\"cwd\":${cwd_json},\"shell\":\"zsh\",\"history\":${hist_json},\"exit_status\":${__AISH_LAST_EXIT:-0}}"
+    [[ -z "$json_req" ]] && return 1
 
     # Close any previous in-flight request
     if [[ -n "$__AISH_RESPONSE_FD" ]]; then
